@@ -1,0 +1,12 @@
+{
+  "rewrites": [
+    {
+      "source": "/api-cne/:path*",
+      "destination": "https://URL_REAL_DE_LA_[API.com/:path](https://API.com/:path)*"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}
