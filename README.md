@@ -49,7 +49,7 @@ npm install lucide-react
 Reemplaza el contenido de `src/App.jsx` con el código proporcionado para BencinaApp.
 
 4. **Configura el Proxy (Muy Importante):**
-Para evitar errores de CORS al consultar la API de la CNE en modo desarrollo, abre tu archivo `vite.config.js` y añade el proxy:
+Para evitar errores de CORS al consultar la API de la CNE en modo desarrollo, abre tu archivo `vite.config.js` y añade el proxy: 
 ```javascript
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
