@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Fuel, MapPin, DollarSign, Droplets, Gauge, ChevronDown, Loader2, AlertCircle, ShieldCheck, Route, ArrowRight, Map, Search, RefreshCw, Check, X, Clock, TrendingUp, Store, Calculator, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Fuel, MapPin, DollarSign, Droplets, Gauge, ChevronDown, Loader2, AlertCircle, ShieldCheck, Route, ArrowRight, Map, Search, RefreshCw, Check, X, Clock, TrendingUp, Store, Calculator, ChevronLeft, ChevronRight, Sparkles, BrainCircuit } from 'lucide-react';
 
 // =====================================================================
-// 🛑 ATENCIÓN: ¡CONFIGURA AQUÍ TU RUTA DE POSTMAN! 🛑
+// 🛑 CONFIGURACIÓN DE RUTAS Y API
 // =====================================================================
 const RUTA_ESTACIONES = "/api-cne/api/v4/estaciones"; 
+const GEMINI_MODEL = "gemini-2.5-flash-preview-09-2025";
+const apiKey = ""; // La clave se provee en el entorno de ejecución
 // =====================================================================
 
 const REGION_MAP = {
@@ -25,6 +27,34 @@ const REGION_MAP = {
   'aysén': 'XI', 'aysen': 'XI',
   'magallanes': 'XII'
 };
+
+// --- FUNCIÓN HELPER PARA GEMINI CON EXPONENTIAL BACKOFF ---
+async function callGemini(prompt, systemInstruction) {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`;
+  const payload = {
+    contents: [{ parts: [{ text: prompt }] }],
+    systemInstruction: { parts: [{ text: systemInstruction }] }
+  };
+
+  const fetchWithRetry = async (retries = 5, delay = 1000) => {
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (!response.ok) throw new Error(`Error HTTP: ${response.status}`);
+      const data = await response.json();
+      return data.candidates?.[0]?.content?.parts?.[0]?.text;
+    } catch (error) {
+      if (retries === 0) throw error;
+      await new Promise(resolve => setTimeout(resolve, delay));
+      return fetchWithRetry(retries - 1, delay * 2);
+    }
+  };
+
+  return fetchWithRetry();
+}
 
 function extractRegionId(displayName) {
   const lower = displayName.toLowerCase();
@@ -53,6 +83,7 @@ function generateMapHtml(origin, dest, geometry, isRoundTrip) {
     <!DOCTYPE html>
     <html>
     <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
         <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
         <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
         <style>
@@ -133,6 +164,7 @@ function generateStationsMapHtml(stations, selectedId) {
     <!DOCTYPE html>
     <html>
     <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
         <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
         <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
         <style>
@@ -158,7 +190,6 @@ function generateStationsMapHtml(stations, selectedId) {
 }
 
 // Buscador de Ciudades Optimizada para Ruta (Paso 1 y 2)
-// Usa la lista de la CNE pero saca las coordenadas reales de Nominatim
 const RouteCityAutocomplete = ({ placeholder, value, onSelect, comunasData }) => {
   const [query, setQuery] = useState(value ? value.mainName : '');
   const [results, setResults] = useState([]);
@@ -187,19 +218,15 @@ const RouteCityAutocomplete = ({ placeholder, value, onSelect, comunasData }) =>
     setResults(filtered);
   }, [query, isOpen, comunasData, value]);
 
-  const isSelectedMatch = value && value.mainName === query;
-
   const handleSelectCity = async (cityName) => {
     setQuery(cityName);
     setIsOpen(false);
     setIsLoadingCoords(true);
 
     try {
-      // 1. Buscamos el centro EXACTO de la ciudad usando la API de mapas libre (Nominatim)
       const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&countrycodes=cl&city=${encodeURIComponent(cityName)}&limit=1`);
       let data = await res.json();
 
-      // Si falla por city=, intenta con una búsqueda general
       if (!data || data.length === 0) {
           const res2 = await fetch(`https://nominatim.openstreetmap.org/search?format=json&countrycodes=cl&q=${encodeURIComponent(cityName + ', Chile')}&limit=1`);
           data = await res2.json();
@@ -216,7 +243,6 @@ const RouteCityAutocomplete = ({ placeholder, value, onSelect, comunasData }) =>
           regionId: fallbackCity?.regionId || 'RM'
         });
       } else {
-        // Fallback a las coordenadas calculadas de la CNE en caso extremo de que falle Nominatim
         onSelect(fallbackCity); 
       }
     } catch (err) {
@@ -237,9 +263,9 @@ const RouteCityAutocomplete = ({ placeholder, value, onSelect, comunasData }) =>
           if (value && value.mainName !== e.target.value) onSelect(null);
         }}
         onFocus={() => setIsOpen(true)}
-        onBlur={() => setIsOpen(false)}
+        onBlur={() => setTimeout(() => setIsOpen(false), 200)}
         placeholder={placeholder}
-        className="w-full p-3.5 pl-4 pr-10 text-sm font-medium text-slate-700 bg-slate-50 rounded-xl border border-slate-200 outline-none transition-all focus:ring-2 focus:ring-blue-500 focus:bg-white"
+        className="w-full p-3.5 pl-4 pr-10 text-[16px] font-medium text-slate-700 bg-slate-50 rounded-xl border border-slate-200 outline-none transition-all focus:ring-2 focus:ring-blue-500 focus:bg-white"
       />
       {isLoadingCoords ? (
         <Loader2 className="absolute right-3.5 top-3.5 w-4 h-4 text-blue-500 animate-spin" />
@@ -311,9 +337,9 @@ const ComunaAutocomplete = ({ placeholder, value, onSelect, comunas }) => {
           if (value && value !== e.target.value) onSelect('');
         }}
         onFocus={() => { setIsOpen(true); if(!value) setQuery(''); }}
-        onBlur={() => { setIsOpen(false); if (value) setQuery(value); }}
+        onBlur={() => setTimeout(() => setIsOpen(false), 200)}
         placeholder={placeholder}
-        className={`w-full p-3.5 pl-10 pr-10 text-sm font-medium rounded-xl outline-none transition-all border ${
+        className={`w-full p-3.5 pl-10 pr-10 text-[16px] font-medium rounded-xl outline-none transition-all border ${
           isSelectedMatch ? 'bg-blue-50/50 border-blue-400 text-blue-900 focus:ring-1 focus:ring-blue-500' : 'bg-slate-50 border-slate-200 focus:ring-1 focus:ring-blue-500 focus:bg-white text-slate-700'
         }`}
       />
@@ -348,7 +374,7 @@ const ComunaAutocomplete = ({ placeholder, value, onSelect, comunas }) => {
 
 export default function App() {
   const [calcMode, setCalcMode] = useState('viaje'); 
-  const [chargeMode, setChargeMode] = useState('money'); // Por defecto iniciar en dinero
+  const [chargeMode, setChargeMode] = useState('money');
   const [fuelType, setFuelType] = useState('93');
   
   const [inputValue, setInputValue] = useState('');
@@ -373,12 +399,16 @@ export default function App() {
   const [isCalculatingRoute, setIsCalculatingRoute] = useState(false);
   const [authStatus, setAuthStatus] = useState('pending');
 
+  // ✨ ESTADOS PARA LA IA DE GEMINI ✨
+  const [aiAnalysis, setAiAnalysis] = useState(null);
+  const [isAiLoading, setIsAiLoading] = useState(false);
+  const [showAiModal, setShowAiModal] = useState(false);
+
   // Filtramos las estaciones por comuna, evaluamos caducidad y ordenamos
   const filteredStationsCarga = React.useMemo(() => {
     if (!cargaComuna) return [];
     
     const now = Date.now();
-    // Consideramos desactualizado si han pasado más de 7 días (1 semana)
     const OUTDATED_MS = 7 * 24 * 60 * 60 * 1000;
 
     return cneStations
@@ -388,11 +418,8 @@ export default function App() {
          return { ...s, isOutdated };
       })
       .sort((a, b) => {
-         // 1. Las desactualizadas se van al fondo de la lista
          if (a.isOutdated && !b.isOutdated) return 1;
          if (!a.isOutdated && b.isOutdated) return -1;
-         
-         // 2. Ordenar por precio (de menor a mayor)
          return a.precios[fuelType] - b.precios[fuelType];
       });
   }, [cneStations, cargaComuna, fuelType]);
@@ -420,7 +447,6 @@ export default function App() {
         const clickedStation = filteredStationsCarga.find(s => s.id === clickedId);
         if (clickedStation) {
           setCurrentStation(clickedStation);
-          // Buscar en qué página está la estación clickeada y cambiar a ella
           const stationIndex = filteredStationsCarga.findIndex(s => s.id === clickedId);
           if (stationIndex !== -1) {
             setCurrentPage(Math.floor(stationIndex / ITEMS_PER_PAGE) + 1);
@@ -573,7 +599,7 @@ export default function App() {
                                     else if (n === 'ke' || n.includes('parafina') || n.includes('kerosene')) { pparafina = val; matched = true; }
                                     
                                     if (matched && typeof v === 'object' && v.fecha_actualizacion && !fechaAct) {
-                                        let f = v.fecha_actualizacion; // "2026-04-02"
+                                        let f = v.fecha_actualizacion; 
                                         let h = v.hora_actualizacion || '00:00:00';
                                         
                                         const parsedDate = new Date(`${f}T${h}`);
@@ -693,7 +719,6 @@ export default function App() {
   const comunasDataForRouting = React.useMemo(() => {
     const comunasObj = {};
     
-    // Promediamos las coordenadas como respaldo, pero extraeremos las precisas de Nominatim al hacer click
     cneStations.forEach(s => {
       if (s.lat !== 0 && s.lon !== 0) {
         if (!comunasObj[s.comuna]) {
@@ -713,15 +738,6 @@ export default function App() {
       lon: c.lonSum / c.count
     })).sort((a, b) => a.mainName.localeCompare(b.mainName));
   }, [cneStations]);
-
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4 font-sans">
-        <Loader2 className="w-12 h-12 text-blue-600 animate-spin mb-4" />
-        <h2 className="text-xl font-semibold text-slate-700">Conectando con CNE...</h2>
-      </div>
-    );
-  }
 
   const availableComunas = Array.from(new Set(cneStations.map(s => s.comuna))).sort((a, b) => a.localeCompare(b));
 
@@ -745,7 +761,6 @@ export default function App() {
   const numInput = parseFloat(inputValue) || 0;
   const baseDist = parseFloat(distanceKm) || 0;
   
-  // Distancia calculada y mostrada en pantalla (Ida y vuelta la multiplica por 2 visualmente)
   const displayDistanceKm = isRoundTrip ? (baseDist * 2).toFixed(1) : baseDist.toFixed(1);
   const eff = parseFloat(efficiencyKml) || 1; 
 
@@ -764,7 +779,7 @@ export default function App() {
 
   function formatCLP(value) {
     const safeValue = isNaN(value) || !isFinite(value) ? 0 : value;
-    return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(safeValue);
+    return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(safeValue);
   }
 
   const fuelOptionsCarga = ['93', '95', '97', 'diesel', 'parafina'];
@@ -775,12 +790,48 @@ export default function App() {
   const currentStationsPage = filteredStationsCarga.slice(indexOfFirstItem, indexOfLastItem);
   const totalPages = Math.ceil(filteredStationsCarga.length / ITEMS_PER_PAGE);
 
+  // --- ✨ FUNCIÓN PARA CONSULTAR A LA IA ✨ ---
+  const handleAskAI = async () => {
+    setIsAiLoading(true);
+    setShowAiModal(true);
+    setAiAnalysis(null);
+
+    let prompt = "";
+    let sys = "Eres un experto asistente de conducción en Chile. Analiza los datos de bencina y rutas y entrega consejos breves, estratégicos y amigables. Usa modismos chilenos ligeros.";
+
+    if (calcMode === 'carga') {
+      const top3 = filteredStationsCarga.slice(0, 3).map(s => `${s.distribuidor} ($${s.precios[fuelType]})`).join(", ");
+      prompt = `En la comuna de ${cargaComuna}, los precios de ${fuelType} son: ${top3}. La estación seleccionada es ${currentStation?.distribuidor} a $${currentStation?.precios[fuelType]}. ¿Es una buena decisión? Da un consejo rápido de ahorro.`;
+    } else {
+      prompt = `Viaje de ${originCity?.mainName} a ${destCity?.mainName} (${displayDistanceKm} km). Rendimiento de ${efficiencyKml} km/L usando ${fuelType}. El costo total es de ${formatCLP(resultValue)}. Dame 3 tips rápidos para este trayecto y dime si el gasto te parece razonable.`;
+    }
+
+    try {
+      const text = await callGemini(prompt, sys);
+      setAiAnalysis(text);
+    } catch (e) {
+      setAiAnalysis("¡Pucha! No pude conectar con el cerebro de la App. Revisa tu conexión e inténtalo de nuevo.");
+    } finally {
+      setIsAiLoading(false);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4 font-sans">
+        <Loader2 className="w-12 h-12 text-blue-600 animate-spin mb-4" />
+        <h2 className="text-xl font-semibold text-slate-700">Conectando con CNE...</h2>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 sm:py-8 font-sans text-slate-800">
-      <div className="w-full max-w-md bg-white sm:rounded-3xl sm:shadow-2xl sm:border border-slate-100 relative overflow-hidden flex flex-col min-h-screen sm:min-h-[850px]">
+    <div className="bg-slate-50 flex items-center justify-center font-sans text-slate-800 h-[100dvh] sm:h-screen sm:p-8">
+      {/* Contenedor Principal Adaptable */}
+      <div className="w-full max-w-md bg-white sm:rounded-3xl sm:shadow-2xl sm:border border-slate-100 flex flex-col h-full sm:h-[850px] overflow-hidden">
         
-        {/* HEADER */}
-        <div className="bg-blue-600 p-6 text-white relative shadow-md shrink-0">
+        {/* HEADER (Fijo arriba) */}
+        <div className="shrink-0 bg-blue-600 p-5 sm:p-6 text-white relative shadow-md z-20">
           <div className="absolute top-4 right-4 flex flex-col items-end gap-1">
             <div className={`flex items-center space-x-1 px-2 py-1 rounded-full text-[10px] font-medium border ${
               authStatus === 'success' ? 'bg-emerald-500/20 border-emerald-400 text-emerald-50' : 
@@ -797,11 +848,11 @@ export default function App() {
           <p className="text-blue-100 text-sm opacity-90">Planifica tu ruta o consulta precios.</p>
         </div>
 
-        {/* CONTENIDO PRINCIPAL SCROLLABLE */}
-        <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-6 flex flex-col bg-slate-50">
+        {/* CONTENIDO SCROLLABLE (Elástico) */}
+        <div className="flex-1 overflow-y-auto bg-slate-50 p-4 sm:p-6 space-y-6 relative z-10">
           
           {/* Pestañas (Tabs) */}
-          <div className="flex p-1.5 bg-white rounded-xl shadow-sm border border-slate-100 shrink-0">
+          <div className="sticky top-0 z-50 flex p-1.5 bg-white rounded-xl shadow-sm border border-slate-100">
             <button
               onClick={() => { 
                 setCalcMode('viaje'); setInputValue(''); 
@@ -824,12 +875,8 @@ export default function App() {
           </div>
 
           {calcMode === 'carga' ? (
-            /* =========================================
-               MODO CARGA 
-               ========================================= */
-            <div className="space-y-6 pb-[200px]">
-              
-              {/* 1. Selector de Combustible (Chips) */}
+            <div className="space-y-6">
+              {/* 1. Selector de Combustible */}
               <div className="space-y-3">
                 <label className="flex items-center text-sm font-bold text-slate-700">
                   <Droplets className="w-4 h-4 mr-2 text-blue-500" /> 1. ¿Qué buscas?
@@ -855,10 +902,19 @@ export default function App() {
               </div>
 
               {/* 2. Buscador de Comuna */}
-              <div className="space-y-3 relative z-50">
-                <label className="flex items-center text-sm font-bold text-slate-700">
-                  <MapPin className="w-4 h-4 mr-2 text-blue-500" /> 2. ¿En qué comuna?
-                </label>
+              <div className="space-y-3 relative z-40">
+                <div className="flex items-center justify-between">
+                  <label className="flex items-center text-sm font-bold text-slate-700">
+                    <MapPin className="w-4 h-4 mr-2 text-blue-500" /> 2. ¿En qué comuna?
+                  </label>
+                  {/* Botón IA */}
+                  {cargaComuna && currentStation && (
+                    <button onClick={handleAskAI} className="flex items-center space-x-1 bg-indigo-50 text-indigo-600 text-[10px] font-black px-2 py-1 rounded-md border border-indigo-200 shadow-sm active:scale-95 transition-transform">
+                      <Sparkles className="w-3 h-3" />
+                      <span>ANALIZAR PRECIOS</span>
+                    </button>
+                  )}
+                </div>
                 <ComunaAutocomplete 
                   placeholder="Escribe tu comuna..." 
                   value={cargaComuna} 
@@ -869,13 +925,13 @@ export default function App() {
 
               {/* 3. Resultados de Estaciones */}
               {cargaComuna && filteredStationsCarga.length > 0 && (
-                <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500 relative z-10">
+                <div className="space-y-4 animate-in fade-in duration-500 relative z-10">
                   <label className="flex items-center text-sm font-bold text-slate-700">
                     <Store className="w-4 h-4 mr-2 text-emerald-500" /> 3. Selecciona tu estación
                   </label>
 
                   {/* Mapa de Estaciones */}
-                  <div className="w-full h-48 rounded-2xl overflow-hidden border-2 border-slate-200 shadow-sm relative bg-slate-200">
+                  <div className="w-full h-44 rounded-2xl overflow-hidden border-2 border-slate-200 shadow-sm relative bg-slate-200">
                       {stationsMapUrl ? (
                          <iframe src={stationsMapUrl} title="Mapa Estaciones" width="100%" height="100%" style={{ border: 0 }} sandbox="allow-scripts allow-same-origin" />
                       ) : (
@@ -888,11 +944,10 @@ export default function App() {
                       </div>
                   </div>
 
-                  {/* Lista Vertical Paginada */}
+                  {/* Lista Paginada */}
                   <div className="flex flex-col gap-3 mt-3">
                     {currentStationsPage.map((station, idx) => {
                       const isSelected = currentStation?.id === station.id;
-                      // Es la más barata solo si estamos en la pag 1, es el primer elemento, y no está desactualizada
                       const isCheapest = currentPage === 1 && idx === 0 && !station.isOutdated;
                       const price = station.precios[fuelType];
                       
@@ -941,7 +996,7 @@ export default function App() {
                     })}
                   </div>
                   
-                  {/* Controles de Paginación */}
+                  {/* Paginador */}
                   {totalPages > 1 && (
                     <div className="flex justify-between items-center mt-2 bg-slate-100 p-2 rounded-xl border border-slate-200">
                        <button 
@@ -949,7 +1004,7 @@ export default function App() {
                          disabled={currentPage === 1}
                          className="flex items-center px-3 py-2 bg-white text-slate-600 text-xs font-bold rounded-lg shadow-sm disabled:opacity-50 transition-active active:scale-95"
                        >
-                         <ChevronLeft className="w-4 h-4 mr-1" /> Anterior
+                         <ChevronLeft className="w-4 h-4 mr-1" /> Ant
                        </button>
                        <span className="text-xs font-bold text-slate-500">Pág {currentPage} de {totalPages}</span>
                        <button 
@@ -957,78 +1012,44 @@ export default function App() {
                          disabled={currentPage === totalPages}
                          className="flex items-center px-3 py-2 bg-white text-slate-600 text-xs font-bold rounded-lg shadow-sm disabled:opacity-50 transition-active active:scale-95"
                        >
-                         Siguiente <ChevronRight className="w-4 h-4 ml-1" />
+                         Sig <ChevronRight className="w-4 h-4 ml-1" />
                        </button>
                     </div>
                   )}
-
                 </div>
               )}
             </div>
           ) : (
-            /* =========================================
-               MODO VIAJE 
-               ========================================= */
-            <div className="space-y-4 pb-[200px]">
-              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-5 relative z-50">
-                {/* Origen */}
+            <div className="space-y-5">
+              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4 relative z-40">
                 <div>
                   <label className="flex items-center text-sm font-bold text-slate-700 mb-2">
-                    <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center mr-2">
-                      <div className="w-2.5 h-2.5 bg-blue-500 rounded-full" />
-                    </div>
+                    <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center mr-2"><div className="w-2.5 h-2.5 bg-blue-500 rounded-full" /></div>
                     Punto de inicio
                   </label>
-                  <RouteCityAutocomplete 
-                    placeholder="¿Desde dónde viajas?" 
-                    value={originCity} 
-                    onSelect={setOriginCity}
-                    comunasData={comunasDataForRouting} 
-                  />
+                  <RouteCityAutocomplete placeholder="¿Desde dónde viajas?" value={originCity} onSelect={setOriginCity} comunasData={comunasDataForRouting} />
                 </div>
 
-                {/* Destino */}
                 <div>
                   <label className="flex items-center text-sm font-bold text-slate-700 mb-2">
-                    <div className="w-6 h-6 rounded-full bg-red-100 flex items-center justify-center mr-2">
-                      <MapPin className="w-3.5 h-3.5 text-red-500" />
-                    </div>
+                    <div className="w-6 h-6 rounded-full bg-red-100 flex items-center justify-center mr-2"><MapPin className="w-3.5 h-3.5 text-red-500" /></div>
                     Punto de destino
                   </label>
-                  <RouteCityAutocomplete 
-                    placeholder="¿Hacia dónde vas?" 
-                    value={destCity} 
-                    onSelect={setDestCity}
-                    comunasData={comunasDataForRouting} 
-                  />
+                  <RouteCityAutocomplete placeholder="¿Hacia dónde vas?" value={destCity} onSelect={setDestCity} comunasData={comunasDataForRouting} />
                 </div>
 
                 <div className="grid grid-cols-2 gap-4 pt-3 border-t border-slate-100">
-                  {/* Rendimiento */}
                   <div>
-                    <label className="flex items-center text-xs font-bold text-slate-700 mb-2">
-                      <Gauge className="w-4 h-4 mr-1.5 text-slate-400" /> Rendimiento
-                    </label>
+                    <label className="flex items-center text-xs font-bold text-slate-700 mb-2"><Gauge className="w-4 h-4 mr-1.5 text-slate-400" /> Rendimiento</label>
                     <div className="relative">
-                      <input
-                        type="number" min="1" step="0.1"
-                        value={efficiencyKml} onChange={(e) => setEfficiencyKml(e.target.value)}
-                        className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-slate-700 font-bold"
-                      />
+                      <input type="number" min="1" step="0.1" value={efficiencyKml} onChange={(e) => setEfficiencyKml(e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-[16px] font-bold text-slate-700" />
                       <span className="absolute right-4 top-3 text-slate-400 text-sm font-medium">km/L</span>
                     </div>
                   </div>
-
-                  {/* Combustible Select */}
                   <div>
-                    <label className="flex items-center text-xs font-bold text-slate-700 mb-2">
-                      <Fuel className="w-4 h-4 mr-1.5 text-slate-400" /> Combustible
-                    </label>
+                    <label className="flex items-center text-xs font-bold text-slate-700 mb-2"><Fuel className="w-4 h-4 mr-1.5 text-slate-400" /> Combustible</label>
                     <div className="relative">
-                      <select
-                        value={fuelType} onChange={(e) => setFuelType(e.target.value)}
-                        className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-slate-700 font-bold appearance-none cursor-pointer"
-                      >
+                      <select value={fuelType} onChange={(e) => setFuelType(e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-[16px] font-bold text-slate-700 appearance-none cursor-pointer">
                         <option value="93">93 Octanos</option>
                         <option value="95">95 Octanos</option>
                         <option value="97">97 Octanos</option>
@@ -1039,25 +1060,28 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Sub-información del formulario de Viaje */}
                 <div className="flex justify-between items-center pt-2">
                    <div className="text-xs text-slate-500 flex items-center">
-                      Precio ref: 
-                      <strong className="text-slate-700 ml-1 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
-                        {pricePerLiter > 0 ? formatCLP(pricePerLiter) : '--'}
-                      </strong>/L
+                      Ref: <strong className="text-slate-700 ml-1 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">{pricePerLiter > 0 ? formatCLP(pricePerLiter) : '--'}</strong>/L
                    </div>
-                   <label className="flex items-center space-x-2 cursor-pointer bg-slate-50 hover:bg-slate-100 transition-colors px-3 py-1.5 rounded-lg border border-slate-200">
-                      <input type="checkbox" className="rounded text-blue-500 accent-blue-500 w-3.5 h-3.5" checked={isRoundTrip} onChange={(e) => setIsRoundTrip(e.target.checked)} />
-                      <span className="text-xs font-bold text-slate-700">Ida y vuelta (x2)</span>
+                   <label className="flex items-center space-x-2 cursor-pointer bg-slate-50 hover:bg-slate-100 transition-colors px-3 py-2 rounded-lg border border-slate-200">
+                      <input type="checkbox" className="rounded text-blue-500 accent-blue-500 w-4 h-4" checked={isRoundTrip} onChange={(e) => setIsRoundTrip(e.target.checked)} />
+                      <span className="text-xs font-bold text-slate-700">Ida y vuelta</span>
                    </label>
                 </div>
               </div>
 
-              {/* Distancia y Mapa (Solo en Viaje) */}
+              {/* Botón IA Viajes */}
+              {originCity && destCity && parseFloat(distanceKm) > 0 && (
+                <button onClick={handleAskAI} className="w-full bg-slate-900 text-white p-3.5 rounded-2xl font-black text-xs flex items-center justify-center space-x-2 shadow-lg active:scale-95 transition-all">
+                  <Sparkles className="w-4 h-4 text-amber-400" />
+                  <span>ANALIZAR RUTA CON IA</span>
+                </button>
+              )}
+
               <div className="flex items-center justify-between px-2">
                  <div className="flex items-center text-sm font-semibold text-slate-600">
-                    <Route className="w-4 h-4 mr-2 text-emerald-500" /> Distancia calculada:
+                    <Route className="w-4 h-4 mr-2 text-emerald-500" /> Distancia total:
                  </div>
                  {isCalculatingRoute ? (
                    <div className="flex items-center text-emerald-600 text-sm font-bold">
@@ -1086,10 +1110,8 @@ export default function App() {
           )}
         </div>
 
-        {/* =========================================
-            PANEL DE CÁLCULO INFERIOR (FIJO)
-            ========================================= */}
-        <div className="absolute bottom-0 left-0 right-0 bg-white border-t border-slate-200 shadow-[0_-10px_40px_rgba(0,0,0,0.05)] p-4 sm:p-6 sm:rounded-b-3xl z-40">
+        {/* PANEL INFERIOR FIJO (Adaptable a teclado móvil) */}
+        <div className="shrink-0 bg-white border-t border-slate-200 shadow-[0_-10px_30px_rgba(0,0,0,0.05)] p-4 sm:p-6 z-30">
            
            {calcMode === 'carga' && currentStation && (
              <div className="bg-slate-50 p-3 rounded-xl mb-4 border border-slate-200">
@@ -1104,13 +1126,13 @@ export default function App() {
                     <input 
                       type="number" min="0" step={chargeMode === 'liters' ? "0.1" : "1000"}
                       value={inputValue} onChange={(e) => setInputValue(e.target.value)}
-                      className="w-full p-2.5 pl-3 pr-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none font-black text-slate-700"
+                      className="w-full p-2.5 pl-3 pr-2 text-[16px] border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none font-bold text-slate-700"
                       placeholder="0"
                     />
                   </div>
                   <select 
                     value={chargeMode} onChange={e => { setChargeMode(e.target.value); setInputValue(''); }}
-                    className="flex-1 p-2 text-sm font-bold bg-white border border-slate-300 rounded-lg outline-none cursor-pointer"
+                    className="flex-1 p-2 text-[16px] font-bold bg-white border border-slate-300 rounded-lg outline-none cursor-pointer"
                   >
                     <option value="money">Pesos ($)</option>
                     <option value="liters">Litros (L)</option>
@@ -1139,6 +1161,49 @@ export default function App() {
               </div>
            </div>
         </div>
+
+        {/* MODAL IA GEMINI */}
+        {showAiModal && (
+          <div className="absolute inset-0 z-[1000] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-white w-full max-w-sm rounded-[2rem] shadow-2xl p-6 animate-in zoom-in-95 duration-200">
+              <div className="flex justify-between items-start mb-5">
+                <div className="flex items-center space-x-3">
+                  <div className="bg-indigo-100 p-2 rounded-xl">
+                    <BrainCircuit className="w-6 h-6 text-indigo-600" />
+                  </div>
+                  <div>
+                    <h2 className="text-base font-black text-slate-800">Copiloto IA ✨</h2>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Powered by Gemini</p>
+                  </div>
+                </div>
+                <button onClick={() => setShowAiModal(false)} className="p-1.5 bg-slate-100 rounded-full text-slate-400 hover:text-slate-600">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {isAiLoading ? (
+                <div className="py-10 flex flex-col items-center justify-center space-y-4">
+                  <Loader2 className="w-10 h-10 text-indigo-500 animate-spin" />
+                  <p className="text-xs font-bold text-slate-400 animate-pulse uppercase">Analizando datos en tiempo real...</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 max-h-60 overflow-y-auto">
+                    <p className="text-sm text-slate-700 font-medium whitespace-pre-wrap leading-relaxed">
+                      {aiAnalysis}
+                    </p>
+                  </div>
+                  <button 
+                    onClick={() => setShowAiModal(false)}
+                    className="w-full bg-indigo-600 text-white py-3.5 rounded-xl font-bold text-sm shadow-md active:scale-95 transition-all"
+                  >
+                    Cerrar Análisis
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
       </div>
     </div>
