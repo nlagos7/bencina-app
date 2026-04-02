@@ -2,7 +2,7 @@
   "rewrites": [
     {
       "source": "/api-cne/:path*",
-      "destination": "[https://api.bencinaenlinea.cl/:path](https://api.bencinaenlinea.cl/:path)*"
+      "destination": "https://api.bencinaenlinea.cl/:path*"
     },
     {
       "source": "/(.*)",
