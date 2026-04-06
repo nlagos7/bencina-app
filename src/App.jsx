@@ -26,7 +26,8 @@ import {
   Eye,
   Settings,
   ArrowUpDown,
-  Car
+  Car,
+  Info
 } from "lucide-react";
 
 // =====================================================================
@@ -206,7 +207,7 @@ function detectTollsInRoute(geometry) {
   let total = 0;
   const tolls = [];
 
-  // 🔥 DENSIFICAR RUTA (Asegura que las rectas largas de OSRM no se salten peajes)
+  // 🔥 DENSIFICAR RUTA
   const densePoints = [];
   for (let i = 0; i < geometry.coordinates.length - 1; i++) {
     const [lon1, lat1] = geometry.coordinates[i];
@@ -226,7 +227,7 @@ function detectTollsInRoute(geometry) {
   }
   densePoints.push(geometry.coordinates[geometry.coordinates.length - 1]);
 
-  const tolerance = 4; // 4km normal
+  const tolerance = 4;
 
   // 🔥 DETECCIÓN
   densePoints.forEach((coord) => {
@@ -247,7 +248,7 @@ function detectTollsInRoute(geometry) {
   return { total, list: tolls };
 }
 
-// Extrae el mejor precio disponible considerando la nueva estructura
+// Extrae el mejor precio disponible
 function getBestPrice(pObj) {
   if (!pObj) return 0;
   if (typeof pObj === "number") return pObj;
@@ -482,11 +483,20 @@ const ComunaAutocomplete = ({ placeholder, value, onSelect, comunas }) => {
 export default function App() {
   const [calcMode, setCalcMode] = useState("viaje");
   const [chargeMode, setChargeMode] = useState("money");
-  const [fuelType, setFuelType] = useState("93");
+  
+  // ================= ESTADOS CON PERSISTENCIA (LOCALSTORAGE) =================
+  const [fuelType, setFuelType] = useState(() => localStorage.getItem('bencinaapp_fuel') || "93");
+  const [efficiencyKml, setEfficiencyKml] = useState(() => localStorage.getItem('bencinaapp_eff') || "12");
+  const [includeTolls, setIncludeTolls] = useState(() => localStorage.getItem('bencinaapp_tolls') !== "false");
+
+  // Estados temporales para el Modal de Configuración
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [tempEff, setTempEff] = useState(efficiencyKml);
+  const [tempFuel, setTempFuel] = useState(fuelType);
+  const [tempTolls, setTempTolls] = useState(includeTolls);
 
   const [inputValue, setInputValue] = useState("");
   const [distanceKm, setDistanceKm] = useState("0");
-  const [efficiencyKml, setEfficiencyKml] = useState("12");
   const [isRoundTrip, setIsRoundTrip] = useState(false);
 
   const [originCity, setOriginCity] = useState(null);
@@ -519,6 +529,28 @@ export default function App() {
       .map((s) => ({ ...s, isOutdated: s.timestampAct === 0 || now - s.timestampAct > OUTDATED_MS }))
       .sort((a, b) => a.isOutdated === b.isOutdated ? getBestPrice(a.precios[fuelType]) - getBestPrice(b.precios[fuelType]) : a.isOutdated ? 1 : -1 );
   }, [cneStations, cargaComuna, fuelType]);
+
+  // Al abrir la configuración, pre-carga los valores actuales
+  useEffect(() => {
+    if (showSettingsModal) {
+      setTempEff(efficiencyKml);
+      setTempFuel(fuelType);
+      setTempTolls(includeTolls);
+    }
+  }, [showSettingsModal, efficiencyKml, fuelType, includeTolls]);
+
+  // Guarda la configuración global en el navegador
+  const handleSaveSettings = () => {
+    setEfficiencyKml(tempEff);
+    setFuelType(tempFuel);
+    setIncludeTolls(tempTolls);
+    
+    localStorage.setItem('bencinaapp_eff', tempEff);
+    localStorage.setItem('bencinaapp_fuel', tempFuel);
+    localStorage.setItem('bencinaapp_tolls', tempTolls);
+    
+    setShowSettingsModal(false);
+  };
 
   // Al cambiar de comuna o combustible en la calculadora, reseteamos la selección.
   useEffect(() => { 
@@ -561,123 +593,123 @@ export default function App() {
   }, [originCity, destCity, routeGeometry, distanceKm, calcMode, isRoundTrip]);
 
   useEffect(() => {
-const fetchRoute = async () => {
-  if (calcMode !== "viaje") return;
+    const fetchRoute = async () => {
+      if (calcMode !== "viaje") return;
 
-  if (!originCity || !destCity) {
-    setDistanceKm("0");
-    setRouteGeometry(null);
-    setDetectedTolls({ total: 0, list: [] });
-    setRouteError(false);
-    return;
-  }
+      if (!originCity || !destCity) {
+        setDistanceKm("0");
+        setRouteGeometry(null);
+        setDetectedTolls({ total: 0, list: [] });
+        setRouteError(false);
+        return;
+      }
 
-  setIsCalculatingRoute(true);
-  setRouteError(false);
+      setIsCalculatingRoute(true);
+      setRouteError(false);
 
-  const endpoints = [
-    "/api-osrm/route/v1/driving",
-    "https://routing.openstreetmap.de/routed-car/route/v1/driving",
-    "https://api.openrouteservice.org/v2/directions/driving-car"
-  ];
+      const endpoints = [
+        "/api-osrm/route/v1/driving",
+        "https://routing.openstreetmap.de/routed-car/route/v1/driving",
+        "https://api.openrouteservice.org/v2/directions/driving-car"
+      ];
 
-  let routeFound = false;
+      let routeFound = false;
 
-  for (let i = 0; i < endpoints.length; i++) {
-    try {
-      let url = "";
+      for (let i = 0; i < endpoints.length; i++) {
+        try {
+          let url = "";
 
-      if (endpoints[i].includes("openrouteservice")) {
-        const API_KEY = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjM5MDY2ZmJlZDhhNzRkYTZiMmVkOWI5MmI2NDcyM2Q1IiwiaCI6Im11cm11cjY0In0=";
+          if (endpoints[i].includes("openrouteservice")) {
+            const API_KEY = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjM5MDY2ZmJlZDhhNzRkYTZiMmVkOWI5MmI2NDcyM2Q1IiwiaCI6Im11cm11cjY0In0=";
 
-        const res = await fetch(endpoints[i], {
-          method: "POST",
-          headers: {
-            "Authorization": API_KEY,
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            coordinates: [
-              [originCity.lon, originCity.lat],
-              [destCity.lon, destCity.lat]
-            ]
-          })
-        });
+            const res = await fetch(endpoints[i], {
+              method: "POST",
+              headers: {
+                "Authorization": API_KEY,
+                "Content-Type": "application/json"
+              },
+              body: JSON.stringify({
+                coordinates: [
+                  [originCity.lon, originCity.lat],
+                  [destCity.lon, destCity.lat]
+                ]
+              })
+            });
 
-        if (!res.ok) throw new Error("ORS fallo");
+            if (!res.ok) throw new Error("ORS fallo");
 
-        const data = await res.json();
+            const data = await res.json();
 
-        const coords = data.features[0].geometry.coordinates;
-        const dist = data.features[0].properties.summary.distance / 1000;
+            const coords = data.features[0].geometry.coordinates;
+            const dist = data.features[0].properties.summary.distance / 1000;
 
-        const geo = { coordinates: coords };
+            const geo = { coordinates: coords };
 
-        setDistanceKm(dist.toFixed(1));
-        setRouteGeometry(geo);
+            setDistanceKm(dist.toFixed(1));
+            setRouteGeometry(geo);
 
-        const tolls = detectTollsInRoute(geo);
-        setDetectedTolls(tolls);
+            const tolls = detectTollsInRoute(geo);
+            setDetectedTolls(tolls);
 
-        routeFound = true;
-        break;
-      } else {
-        url = `${endpoints[i]}/${originCity.lon},${originCity.lat};${destCity.lon},${destCity.lat}?overview=full&geometries=geojson`;
+            routeFound = true;
+            break;
+          } else {
+            url = `${endpoints[i]}/${originCity.lon},${originCity.lat};${destCity.lon},${destCity.lat}?overview=full&geometries=geojson`;
 
-        const res = await fetch(url);
+            const res = await fetch(url);
 
-        if (!res.ok) throw new Error("OSRM fallo");
+            if (!res.ok) throw new Error("OSRM fallo");
 
-        const data = await res.json();
+            const data = await res.json();
 
-        if (data.routes && data.routes.length > 0) {
-          const geo = data.routes[0].geometry;
-          const dist = data.routes[0].distance / 1000;
+            if (data.routes && data.routes.length > 0) {
+              const geo = data.routes[0].geometry;
+              const dist = data.routes[0].distance / 1000;
 
-          setDistanceKm(dist.toFixed(1));
-          setRouteGeometry(geo);
+              setDistanceKm(dist.toFixed(1));
+              setRouteGeometry(geo);
 
-          const tolls = detectTollsInRoute(geo);
-          setDetectedTolls(tolls);
+              const tolls = detectTollsInRoute(geo);
+              setDetectedTolls(tolls);
 
-          routeFound = true;
-          break;
+              routeFound = true;
+              break;
+            }
+          }
+        } catch (err) {
+          console.warn(`❌ Endpoint ${i} falló`);
         }
       }
-    } catch (err) {
-      console.warn(`X Endpoint ${i} falló`);
-    }
-  }
 
-  //FALLBACK DEFINITIVO (NUNCA FALLA)
-  if (!routeFound) {
-    console.warn("Usando fallback directo");
+      // 🔥 FALLBACK DEFINITIVO (NUNCA FALLA)
+      if (!routeFound) {
+        console.warn("⚠️ Usando fallback directo");
 
-    const fallbackDist = calculateHaversineDistance(
-      originCity.lat,
-      originCity.lon,
-      destCity.lat,
-      destCity.lon
-    );
+        const fallbackDist = calculateHaversineDistance(
+          originCity.lat,
+          originCity.lon,
+          destCity.lat,
+          destCity.lon
+        );
 
-    const fakeGeometry = {
-      coordinates: [
-        [originCity.lon, originCity.lat],
-        [destCity.lon, destCity.lat]
-      ]
+        const fakeGeometry = {
+          coordinates: [
+            [originCity.lon, originCity.lat],
+            [destCity.lon, destCity.lat]
+          ]
+        };
+
+        setDistanceKm(fallbackDist.toString());
+        setRouteGeometry(fakeGeometry);
+
+        const tolls = detectTollsInRoute(fakeGeometry);
+        setDetectedTolls(tolls);
+
+        setRouteError(true);
+      }
+
+      setIsCalculatingRoute(false);
     };
-
-    setDistanceKm(fallbackDist.toString());
-    setRouteGeometry(fakeGeometry);
-
-    const tolls = detectTollsInRoute(fakeGeometry);
-    setDetectedTolls(tolls);
-
-    setRouteError(true);
-  }
-
-  setIsCalculatingRoute(false);
-};
     fetchRoute();
   }, [originCity, destCity, calcMode]);
 
@@ -817,7 +849,7 @@ const fetchRoute = async () => {
   }, [cneStations]);
 
   const availableComunas = React.useMemo(() => {
-    const map = new Map();
+    const map = new globalThis.Map();
     cneStations.forEach((s) => {
       if (s.comuna && !map.has(s.comuna)) {
         map.set(s.comuna, s.regionName);
@@ -846,7 +878,7 @@ const fetchRoute = async () => {
 
   const litersNeeded = eff > 0 ? parseFloat(displayDistanceKm) / eff : 0;
   const bencinaTotal = litersNeeded * pricePerLiter;
-  const peajeTotal = detectedTolls.total * (isRoundTrip ? 2 : 1);
+  const peajeTotal = includeTolls ? (detectedTolls.total * (isRoundTrip ? 2 : 1)) : 0;
 
   let resultValue = 0;
   if (calcMode === "carga") {
@@ -1020,19 +1052,19 @@ const fetchRoute = async () => {
         {calcMode === "viaje" && resultValue > 0 && (
           <div className="flex flex-col items-end gap-1.5 pb-1">
             <span className="text-[11px] font-bold text-slate-400 flex items-center bg-slate-50 px-2 py-0.5 rounded-md"><Droplets className="w-3 h-3 mr-1 text-slate-400" /> {formatCLP(bencinaTotal)}</span>
-            <span className="text-[11px] font-bold text-slate-400 flex items-center bg-slate-50 px-2 py-0.5 rounded-md"><Ticket className="w-3 h-3 mr-1 text-slate-400" /> {formatCLP(peajeTotal)}</span>
+            <span className="text-[11px] font-bold text-slate-400 flex items-center bg-slate-50 px-2 py-0.5 rounded-md"><Ticket className="w-3 h-3 mr-1 text-slate-400" /> {includeTolls ? formatCLP(peajeTotal) : 'Omitidos'}</span>
           </div>
         )}
       </div>
 
       {calcMode === "viaje" && (
         <button 
-          onClick={() => { if(detectedTolls.list.length > 0) setShowTollsModal(true) }} 
-          disabled={detectedTolls.list.length === 0}
+          onClick={() => { if(detectedTolls.list.length > 0 && includeTolls) setShowTollsModal(true) }} 
+          disabled={detectedTolls.list.length === 0 || !includeTolls}
           className="w-full bg-slate-900 text-white rounded-[1.25rem] py-4 font-extrabold text-[15px] flex items-center justify-center gap-2 shadow-xl shadow-slate-900/20 active:scale-[0.98] transition-all disabled:opacity-50 disabled:active:scale-100"
         >
           <Ticket className="w-5 h-5" />
-          {detectedTolls.list.length > 0 ? 'Ver desglose de peajes' : 'Sin peajes en la ruta'}
+          {detectedTolls.list.length > 0 ? (includeTolls ? 'Ver desglose de peajes' : 'Peajes omitidos') : 'Sin peajes en la ruta'}
         </button>
       )}
 
@@ -1067,7 +1099,7 @@ const fetchRoute = async () => {
             </h1>
             <div className="flex items-center gap-3">
                {authStatus === 'error' && <AlertCircle className="w-5 h-5 text-red-500" />}
-               <button className="p-2.5 bg-white rounded-full shadow-sm text-slate-600 hover:bg-slate-50 transition-colors">
+               <button onClick={() => setShowSettingsModal(true)} className="p-2.5 bg-white rounded-full shadow-sm text-slate-600 hover:bg-slate-50 transition-colors">
                   <Settings className="w-5 h-5" />
                </button>
             </div>
@@ -1129,7 +1161,7 @@ const fetchRoute = async () => {
                             <span className="font-bold text-slate-700">Rendimiento</span>
                          </div>
                          <div className="flex items-center gap-1 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200">
-                            <input type="number" step="0.1" min="1" className="w-10 bg-transparent outline-none font-black text-right text-slate-900" value={efficiencyKml} onChange={(e)=>setEfficiencyKml(e.target.value)} />
+                            <input type="number" step="0.1" min="1" className="w-10 bg-transparent outline-none font-black text-right text-slate-900" value={efficiencyKml} onChange={(e) => { setEfficiencyKml(e.target.value); localStorage.setItem('bencinaapp_eff', e.target.value); }} />
                             <span className="text-sm font-semibold text-slate-500">Km/L</span>
                          </div>
                       </div>
@@ -1139,7 +1171,7 @@ const fetchRoute = async () => {
                             <span className="font-bold text-slate-700">Combustible</span>
                          </div>
                          <div className="relative">
-                           <select className="bg-slate-50 pl-3 pr-8 py-2 rounded-xl border border-slate-200 font-black text-slate-900 outline-none cursor-pointer appearance-none" value={fuelType} onChange={(e)=>setFuelType(e.target.value)}>
+                           <select className="bg-slate-50 pl-3 pr-8 py-2 rounded-xl border border-slate-200 font-black text-slate-900 outline-none cursor-pointer appearance-none" value={fuelType} onChange={(e) => { setFuelType(e.target.value); localStorage.setItem('bencinaapp_fuel', e.target.value); }}>
                               <option value="93">93 oct</option>
                               <option value="95">95 oct</option>
                               <option value="97">97 oct</option>
@@ -1150,13 +1182,18 @@ const fetchRoute = async () => {
                       </div>
                       <div className="flex items-center justify-between p-4">
                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-600"><Ticket className="w-5 h-5"/></div>
-                            <span className="font-bold text-slate-700">Peajes y TAG</span>
+                            <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${includeTolls ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}><Ticket className="w-5 h-5"/></div>
+                            <span className={`font-bold transition-colors ${includeTolls ? 'text-slate-700' : 'text-slate-400'}`}>Peajes y TAG</span>
                          </div>
-                         <div className="flex items-center gap-2">
-                           <span className="text-xs font-bold text-emerald-600">Automático</span>
-                           <div className="w-10 h-6 bg-emerald-500 rounded-full relative flex items-center px-1">
-                             <div className="w-4 h-4 bg-white rounded-full absolute right-1"></div>
+                         <div 
+                            className="flex items-center gap-2 cursor-pointer"
+                            onClick={() => { const newVal = !includeTolls; setIncludeTolls(newVal); localStorage.setItem('bencinaapp_tolls', newVal); }}
+                         >
+                           <span className={`text-xs font-bold transition-colors ${includeTolls ? 'text-emerald-600' : 'text-slate-400'}`}>
+                             {includeTolls ? 'Automático' : 'Omitir'}
+                           </span>
+                           <div className={`w-10 h-6 rounded-full relative flex items-center px-1 transition-colors duration-300 ${includeTolls ? 'bg-emerald-500' : 'bg-slate-300'}`}>
+                             <div className={`w-4 h-4 bg-white rounded-full absolute transition-all duration-300 ${includeTolls ? 'translate-x-4' : 'translate-x-0'}`}></div>
                            </div>
                          </div>
                       </div>
@@ -1177,7 +1214,7 @@ const fetchRoute = async () => {
                     {fuelOptionsCarga.map((type) => {
                       const isSelected = fuelType === type;
                       return (
-                        <button key={type} onClick={() => setFuelType(type)} className={`px-5 py-3 rounded-2xl text-sm font-bold transition-all whitespace-nowrap ${isSelected ? "bg-slate-900 text-white shadow-md" : "bg-white text-slate-600 shadow-[0_4px_20px_rgb(0,0,0,0.03)] hover:bg-slate-50"}`}>
+                        <button key={type} onClick={() => { setFuelType(type); localStorage.setItem('bencinaapp_fuel', type); }} className={`px-5 py-3 rounded-2xl text-sm font-bold transition-all whitespace-nowrap ${isSelected ? "bg-slate-900 text-white shadow-md" : "bg-white text-slate-600 shadow-[0_4px_20px_rgb(0,0,0,0.03)] hover:bg-slate-50"}`}>
                           {type === "diesel" ? "Diesel" : type === "parafina" ? "Parafina" : type + " Octanos"}
                         </button>
                       )
@@ -1262,6 +1299,77 @@ const fetchRoute = async () => {
                   </div>
                   <button onClick={() => setShowTollsModal(false)} className="w-full bg-slate-900 text-white py-4 rounded-[1.25rem] font-bold text-[15px] active:scale-95 transition-transform shadow-xl shadow-slate-900/20">
                      Cerrar
+                  </button>
+               </div>
+            </div>
+          </div>
+        )}
+
+        {/* ================= MODAL DE CONFIGURACIÓN ================= */}
+        {showSettingsModal && (
+          <div className="fixed inset-0 z-[1000] bg-slate-900/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-4 sm:p-0">
+            <div className="bg-white w-full max-w-sm rounded-[2.5rem] shadow-2xl p-6 animate-in slide-in-from-bottom-8 duration-300 mb-4 sm:mb-0">
+               <div className="flex justify-between items-center mb-6">
+                  <h3 className="font-black text-slate-900 flex items-center text-xl">
+                     <Settings className="w-6 h-6 mr-2 text-slate-900"/> Configuración
+                  </h3>
+                  <button onClick={() => setShowSettingsModal(false)} className="bg-slate-100 p-2 rounded-full hover:bg-slate-200 transition-colors">
+                     <X className="w-5 h-5 text-slate-600"/>
+                  </button>
+               </div>
+               
+               <div className="space-y-4 max-h-[60vh] overflow-y-auto no-scrollbar pb-2">
+                  
+                  {/* VEHÍCULO */}
+                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                     <h4 className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider mb-3 flex items-center"><Car className="w-3.5 h-3.5 mr-1.5"/> Mi Vehículo (Predeterminado)</h4>
+                     <div className="space-y-4">
+                        <div className="flex justify-between items-center">
+                           <span className="text-sm font-bold text-slate-700">Rendimiento (Km/L)</span>
+                           <input type="number" step="0.1" min="1" className="w-20 p-2 bg-white border border-slate-200 rounded-xl outline-none font-black text-center text-slate-900 shadow-sm" value={tempEff} onChange={(e) => setTempEff(e.target.value)} />
+                        </div>
+                        <div className="flex justify-between items-center">
+                           <span className="text-sm font-bold text-slate-700">Combustible</span>
+                           <select className="bg-white px-3 py-2 rounded-xl border border-slate-200 font-black text-slate-900 outline-none cursor-pointer shadow-sm" value={tempFuel} onChange={(e) => setTempFuel(e.target.value)}>
+                              <option value="93">93 oct</option>
+                              <option value="95">95 oct</option>
+                              <option value="97">97 oct</option>
+                              <option value="diesel">Diesel</option>
+                              <option value="parafina">Parafina</option>
+                           </select>
+                        </div>
+                     </div>
+                  </div>
+
+                  {/* PREFERENCIAS */}
+                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                      <h4 className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider mb-3 flex items-center"><Ticket className="w-3.5 h-3.5 mr-1.5"/> Preferencias</h4>
+                      <div className="flex justify-between items-center">
+                         <span className="text-sm font-bold text-slate-700">Incluir Peajes y TAG</span>
+                         <div className="flex items-center gap-2 cursor-pointer" onClick={() => setTempTolls(!tempTolls)}>
+                           <div className={`w-12 h-7 rounded-full relative flex items-center px-1 transition-colors duration-300 ${tempTolls ? 'bg-emerald-500' : 'bg-slate-300'}`}>
+                             <div className={`w-5 h-5 bg-white rounded-full absolute transition-all duration-300 ${tempTolls ? 'translate-x-5' : 'translate-x-0'}`}></div>
+                           </div>
+                         </div>
+                      </div>
+                  </div>
+
+                  {/* INFO */}
+                  <div className="bg-blue-50 p-4 rounded-2xl border border-blue-100">
+                     <div className="flex items-start gap-3">
+                        <div className="p-2 bg-blue-100 rounded-full text-blue-600 shrink-0"><Info className="w-4 h-4"/></div>
+                        <div>
+                           <h4 className="text-xs font-black text-blue-900 mb-1">BencinaApp v1.1.0</h4>
+                           <p className="text-[10px] font-medium text-blue-700 leading-tight">Precios obtenidos en tiempo real desde la CNE. Base de datos de tarifas de peajes actualizada al año 2026.</p>
+                        </div>
+                     </div>
+                  </div>
+
+               </div>
+               
+               <div className="mt-4 pt-4 border-t border-slate-100">
+                  <button onClick={handleSaveSettings} className="w-full bg-slate-900 hover:bg-slate-800 text-white py-4 rounded-[1.25rem] font-bold text-[15px] active:scale-95 transition-all shadow-xl shadow-slate-900/20">
+                     Guardar Preferencias
                   </button>
                </div>
             </div>
