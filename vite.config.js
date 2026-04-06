@@ -12,6 +12,11 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api-cne/, ""),
       },
+      "/api-osrm": {
+        target: "https://router.project-osrm.org",
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api-osrm/, ""),
+      },
     },
   },
 });

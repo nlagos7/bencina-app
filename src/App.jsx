@@ -11,7 +11,7 @@ import {
   ShieldCheck,
   Route,
   ArrowRight,
-  Map,
+  Map as MapIcon,
   Search,
   RefreshCw,
   Check,
@@ -23,7 +23,10 @@ import {
   ChevronLeft,
   ChevronRight,
   Ticket,
-  Eye
+  Eye,
+  Settings,
+  ArrowUpDown,
+  Car
 } from "lucide-react";
 
 // =====================================================================
@@ -63,8 +66,7 @@ const REGION_MAP = {
 };
 
 // =========================
-// 🚧 MEGA PEAJES DB (100% OFFLINE)
-// ACTUALIZADO TARIFAS 2026 + DATA EXTRA DE USUARIO
+// 🚧 MEGA PEAJES DB (CLASIFICADOS TRONCAL/LATERAL)
 // =========================
 const PEAJES_DB = [
   // --- ZONA NORTE ---
@@ -134,32 +136,6 @@ const PEAJES_DB = [
   { id: "p_curanilahue", nombre: "Peaje Curanilahue (R160)", lat: -37.450, lon: -73.350, precio: 2500, tipo: "peaje" },
   { id: "p_pilpilco", nombre: "Peaje Pilpilco (R160)", lat: -37.600, lon: -73.400, precio: 2500, tipo: "peaje" },
 
-  // --- MÁS PEAJES Y LATERALES ZONA SUR ---
-  { id: "p_paine", nombre: "Peaje Paine", lat: -33.90762, lon: -70.73124, precio: 3700, tipo: "peaje" },
-  { id: "p_rosario", nombre: "Peaje Rosario", lat: -34.34598, lon: -70.84077, precio: 900, tipo: "peaje" },
-  { id: "p_rengo", nombre: "Peaje Rengo", lat: -34.39999, lon: -70.87174, precio: 900, tipo: "peaje" },
-  { id: "p_sanfernando_lat", nombre: "Peaje San Fernando", lat: -34.60571, lon: -70.98311, precio: 900, tipo: "peaje" },
-  { id: "p_chimbarongo_lat", nombre: "Peaje Chimbarongo", lat: -34.71434, lon: -71.03058, precio: 900, tipo: "peaje" },
-  { id: "p_teno_sur", nombre: "Peaje Teno", lat: -34.79606, lon: -71.04829, precio: 3700, tipo: "peaje" },
-  { id: "p_molina_lat", nombre: "Peaje Molina", lat: -35.09308, lon: -71.3181, precio: 8700, tipo: "peaje" },
-  { id: "p_chillan_rc", nombre: "Peaje Chillán - Río Claro", lat: -35.20923, lon: -71.41098, precio: 3100, tipo: "peaje" },
-  { id: "p_chillan_lin", nombre: "Peaje Chillán - Linares", lat: -35.83706, lon: -71.63185, precio: 800, tipo: "peaje" },
-  { id: "p_chillan_ret", nombre: "Peaje Chillán - Retiro", lat: -36.00965, lon: -71.73294, precio: 3100, tipo: "peaje" },
-  { id: "p_chillan_sc", nombre: "Peaje Chillán - San Carlos", lat: -36.41413, lon: -71.94597, precio: 800, tipo: "peaje" },
-  { id: "p_pemuco_bosque", nombre: "Peaje Pemuco", lat: -36.9093, lon: -72.34219, precio: 3200, tipo: "peaje" },
-  { id: "p_losangeles_lat", nombre: "Peaje Los Ángeles", lat: -37.48156, lon: -72.40525, precio: 800, tipo: "peaje" },
-  { id: "p_mulchen_lat", nombre: "Peaje Mulchén", lat: -37.80649, lon: -72.331, precio: 3200, tipo: "peaje" },
-  { id: "p_perquenco_lat", nombre: "Peaje Perquenco", lat: -38.36282, lon: -72.3861, precio: 3500, tipo: "peaje" },
-  { id: "p_padrelc_lat", nombre: "Peaje Padre Las Casas", lat: -38.77516, lon: -72.58122, precio: 800, tipo: "peaje" },
-  { id: "p_freire_ar", nombre: "Peaje Freire (Araucanía)", lat: -38.91553, lon: -72.62422, precio: 3500, tipo: "peaje" },
-  { id: "p_lanco_2", nombre: "Peaje Lanco (Los Ríos)", lat: -39.48042, lon: -72.80662, precio: 3500, tipo: "peaje" },
-  { id: "p_launion_2", nombre: "Peaje La Unión (Los Ríos)", lat: -40.22809, lon: -72.93889, precio: 3500, tipo: "peaje" },
-  { id: "p_osorno", nombre: "Peaje Osorno", lat: -40.5794, lon: -73.09815, precio: 900, tipo: "peaje" },
-  { id: "p_purranque_2", nombre: "Peaje Purranque (Los Lagos)", lat: -40.95912, lon: -73.134, precio: 3500, tipo: "peaje" },
-  { id: "p_llanquihue", nombre: "Peaje Llanquihue", lat: -41.25465, lon: -73.02331, precio: 900, tipo: "peaje" },
-  { id: "p_puertomontt_2", nombre: "Peaje Puerto Montt (Lagos)", lat: -41.4385, lon: -72.95663, precio: 1100, tipo: "peaje" },
-  { id: "p_maullin", nombre: "Peaje Maullín", lat: -41.61707, lon: -73.27397, precio: 3000, tipo: "peaje" },
-
   // --- PÓRTICOS TAG URBANOS (Representativos de Santiago) ---
   { id: "p_colina_tag", nombre: "TAG Colina (S-Lampa)", lat: -33.27994, lon: -70.73887, precio: 474, tipo: "tag" },
   { id: "p_chicureo_tag", nombre: "TAG Chicureo (S-Lampa)", lat: -33.31709, lon: -70.72221, precio: 387, tipo: "tag" },
@@ -223,7 +199,7 @@ function calculateHaversineDistance(lat1, lon1, lat2, lon2) {
 // =========================
 // 🚨 DETECCIÓN OFFLINE ROBUSTA
 // =========================
-function detectTollsInRoute(geometry, isFallback = false) {
+function detectTollsInRoute(geometry) {
   if (!geometry || !geometry.coordinates || geometry.coordinates.length < 2) return { total: 0, list: [] };
 
   const detected = new Set();
@@ -250,7 +226,7 @@ function detectTollsInRoute(geometry, isFallback = false) {
   }
   densePoints.push(geometry.coordinates[geometry.coordinates.length - 1]);
 
-  const tolerance = isFallback ? 15 : 4; // 4km normal, 15km si es línea de emergencia
+  const tolerance = 4; // 4km normal
 
   // 🔥 DETECCIÓN
   densePoints.forEach((coord) => {
@@ -291,7 +267,11 @@ function generateMapHtml(origin, dest, geometry, isRoundTrip) {
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
         <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
         <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-        <style>body { margin: 0; padding: 0; background: #f8fafc; } #map { width: 100vw; height: 100vh; } .leaflet-control-attribution { display: none !important; }</style>
+        <style>
+          body { margin: 0; padding: 0; background: transparent; } 
+          #map { width: 100vw; height: 100vh; background: transparent; } 
+          .leaflet-control-attribution { display: none !important; }
+        </style>
     </head>
     <body>
         <div id="map"></div>
@@ -300,16 +280,18 @@ function generateMapHtml(origin, dest, geometry, isRoundTrip) {
             L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(map);
             var originCoord = [${origin.lat}, ${origin.lon}];
             var destCoord = [${dest.lat}, ${dest.lon}];
-            L.marker(originCoord, {icon: L.divIcon({ className: 'marker-origin', iconSize: [16, 16], html: '<div style="background:#3b82f6;width:16px;height:16px;border:3px solid white;border-radius:50%"></div>' })}).addTo(map);
-            L.marker(destCoord, {icon: L.divIcon({ className: 'marker-dest', iconSize: [16, 16], html: '<div style="background:#ef4444;width:16px;height:16px;border:3px solid white;border-radius:50%"></div>' })}).addTo(map);
+            
+            L.marker(originCoord, {icon: L.divIcon({ className: 'marker-origin', iconSize: [16, 16], html: '<div style="background:#3b82f6;width:16px;height:16px;border:3px solid white;border-radius:50%;box-shadow:0 2px 5px rgba(0,0,0,0.2)"></div>' })}).addTo(map);
+            L.marker(destCoord, {icon: L.divIcon({ className: 'marker-dest', iconSize: [16, 16], html: '<div style="background:#ef4444;width:16px;height:16px;border:3px solid white;border-radius:50%;box-shadow:0 2px 5px rgba(0,0,0,0.2)"></div>' })}).addTo(map);
+            
             var geometry = ${geomStr};
             if (geometry && geometry.coordinates) {
                 var coords = geometry.coordinates.map(function(c) { return [c[1], c[0]]; });
-                var polyline = L.polyline(coords, {color: '#3b82f6', weight: 5, opacity: 0.8, lineJoin: 'round'}).addTo(map);
+                var polyline = L.polyline(coords, {color: '#3b82f6', weight: 4, opacity: 0.9, lineJoin: 'round'}).addTo(map);
                 map.fitBounds(polyline.getBounds(), {padding: [30, 30]});
             } else {
                 var polyline = L.polyline([originCoord, destCoord], {color: '#94a3b8', weight: 3, dashArray: '8, 12'}).addTo(map);
-                map.fitBounds(polyline.getBounds(), {padding: [30, 30]});
+                map.fitBounds(L.latLngBounds([originCoord, destCoord]), {padding: [30, 30]});
             }
         </script>
     </body>
@@ -348,7 +330,11 @@ function generateStationsMapHtml(stations, selectedId) {
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
         <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
         <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-        <style>body { margin: 0; padding: 0; background: #f8fafc; } #map { width: 100vw; height: 100vh; } .leaflet-control-attribution { display: none !important; }</style>
+        <style>
+          body { margin: 0; padding: 0; background: transparent; } 
+          #map { width: 100vw; height: 100vh; background: transparent; } 
+          .leaflet-control-attribution { display: none !important; }
+        </style>
     </head>
     <body>
         <div id="map"></div>
@@ -364,7 +350,7 @@ function generateStationsMapHtml(stations, selectedId) {
   `;
 }
 
-const RouteCityAutocomplete = ({ placeholder, value, onSelect, comunasData }) => {
+const RouteCityAutocomplete = ({ placeholder, value, onSelect, comunasData, isOrigin }) => {
   const [query, setQuery] = useState(value ? value.mainName : "");
   const [results, setResults] = useState([]);
   const [isOpen, setIsOpen] = useState(false);
@@ -412,24 +398,24 @@ const RouteCityAutocomplete = ({ placeholder, value, onSelect, comunasData }) =>
           if (value && value.mainName !== e.target.value) onSelect(null);
         }}
         placeholder={placeholder}
-        className="w-full p-3.5 pl-4 pr-10 text-[16px] font-medium text-slate-700 bg-slate-50 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white"
+        className="w-full py-2 pr-10 text-[18px] font-bold text-slate-800 bg-transparent outline-none placeholder:text-slate-400 placeholder:font-medium"
       />
       {isLoadingCoords ? (
-        <Loader2 className="absolute right-3.5 top-3.5 w-4 h-4 text-blue-500 animate-spin" />
+        <Loader2 className="absolute right-2 top-2.5 w-4 h-4 text-blue-500 animate-spin" />
       ) : value && value.mainName === query ? (
-        <button type="button" onMouseDown={(e) => { e.preventDefault(); setQuery(""); onSelect(null); setIsOpen(true); }} className="absolute right-3.5 top-3.5 text-slate-400 hover:text-red-500 transition-colors">
+        <button type="button" onMouseDown={(e) => { e.preventDefault(); setQuery(""); onSelect(null); setIsOpen(true); }} className="absolute right-2 top-2.5 text-slate-400 hover:text-red-500 transition-colors">
           <X className="w-4 h-4" />
         </button>
       ) : (
-        <Search className="absolute right-3.5 top-3.5 w-4 h-4 text-slate-400 pointer-events-none" />
+        <Search className="absolute right-2 top-2.5 w-4 h-4 text-slate-300 pointer-events-none" />
       )}
       {isOpen && results.length > 0 && (
-        <ul className="absolute z-50 w-full mt-2 bg-white border border-slate-200 rounded-xl shadow-xl max-h-48 overflow-y-auto">
+        <ul className="absolute z-50 w-full mt-2 bg-white border border-slate-100 rounded-2xl shadow-xl max-h-48 overflow-y-auto">
           {results.map((r, i) => (
-            <li key={i} onMouseDown={(e) => { e.preventDefault(); handleSelectCity(r.mainName); }} className="p-3 cursor-pointer flex justify-between items-center hover:bg-slate-50 text-slate-700 border-b last:border-0 border-slate-100">
+            <li key={i} onMouseDown={(e) => { e.preventDefault(); handleSelectCity(r.mainName); }} className="p-3 cursor-pointer flex justify-between items-center hover:bg-slate-50 text-slate-700 border-b last:border-0 border-slate-50">
               <div className="flex flex-col">
-                 <span className="text-sm font-semibold">{r.mainName}</span>
-                 {r.regionName && <span className="text-[10px] text-slate-400 font-medium">{r.regionName}</span>}
+                 <span className="text-sm font-bold text-slate-800">{r.mainName}</span>
+                 {r.regionName && <span className="text-[10px] text-slate-400 font-semibold uppercase">{r.regionName}</span>}
               </div>
               {value?.mainName === r.mainName && <Check className="w-4 h-4 text-blue-600" />}
             </li>
@@ -467,23 +453,22 @@ const ComunaAutocomplete = ({ placeholder, value, onSelect, comunas }) => {
           if (value && value !== e.target.value) onSelect("");
         }}
         placeholder={placeholder}
-        className="w-full p-3.5 pl-10 pr-10 text-[16px] font-medium rounded-xl outline-none border border-slate-200 bg-slate-50 focus:ring-2 focus:ring-blue-500"
+        className="w-full py-4 pl-4 pr-10 text-[18px] font-bold text-slate-800 bg-transparent outline-none placeholder:text-slate-400 placeholder:font-medium"
       />
-      <MapPin className="absolute left-3.5 top-4 w-4 h-4 text-slate-400" />
       {value === query && value !== "" ? (
-        <button type="button" onMouseDown={(e) => { e.preventDefault(); setQuery(""); onSelect(""); setIsOpen(true); }} className="absolute right-3.5 top-4 text-blue-500 hover:text-red-500 transition-colors">
-          <X className="w-4 h-4" />
+        <button type="button" onMouseDown={(e) => { e.preventDefault(); setQuery(""); onSelect(""); setIsOpen(true); }} className="absolute right-4 top-4 text-blue-500 hover:text-red-500 transition-colors">
+          <X className="w-5 h-5" />
         </button>
       ) : (
-        <Search className="absolute right-3.5 top-4 w-4 h-4 text-slate-400 pointer-events-none" />
+        <Search className="absolute right-4 top-4 w-5 h-5 text-slate-300 pointer-events-none" />
       )}
       {isOpen && results.length > 0 && (
         <ul className="absolute z-50 w-full mt-2 bg-white border rounded-xl shadow-xl max-h-64 overflow-y-auto">
           {results.map((c) => (
-            <li key={c.comuna} onMouseDown={(e) => { e.preventDefault(); onSelect(c.comuna); setIsOpen(false); }} className="p-3 cursor-pointer flex justify-between items-center hover:bg-slate-50 border-b last:border-0 border-slate-100 text-sm font-semibold">
+            <li key={c.comuna} onMouseDown={(e) => { e.preventDefault(); onSelect(c.comuna); setIsOpen(false); }} className="p-3 cursor-pointer flex justify-between items-center hover:bg-slate-50 border-b last:border-0 border-slate-50 text-sm font-semibold">
               <div className="flex flex-col">
-                <span className="text-sm font-semibold text-slate-700">{c.comuna}</span>
-                {c.regionName && <span className="text-[10px] text-slate-400 font-medium">{c.regionName}</span>}
+                <span className="text-sm font-bold text-slate-800">{c.comuna}</span>
+                {c.regionName && <span className="text-[10px] text-slate-400 font-semibold uppercase">{c.regionName}</span>}
               </div>
               {value === c.comuna && <Check className="w-4 h-4 text-blue-600" />}
             </li>
@@ -519,11 +504,11 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [isCalculatingRoute, setIsCalculatingRoute] = useState(false);
   const [authStatus, setAuthStatus] = useState("pending");
+  const [routeError, setRouteError] = useState(false);
 
   // Estados Peajes y Modales
   const [detectedTolls, setDetectedTolls] = useState({ total: 0, list: [] });
   const [showTollsModal, setShowTollsModal] = useState(false);
-  const [apiData, setApiData] = useState(null);
 
   const filteredStationsCarga = React.useMemo(() => {
     if (!cargaComuna) return [];
@@ -578,31 +563,34 @@ export default function App() {
   useEffect(() => {
     const fetchRoute = async () => {
       if (calcMode !== "viaje") return;
+
       if (!originCity || !destCity) {
-        setDistanceKm("0"); setRouteGeometry(null); setDetectedTolls({ total: 0, list: [] }); return;
-      }
-      if (originCity.lat === destCity.lat && originCity.lon === destCity.lon) {
-        setDistanceKm("0"); setRouteGeometry(null); setDetectedTolls({ total: 0, list: [] }); return;
+        setDistanceKm("0");
+        setRouteGeometry(null);
+        setDetectedTolls({ total: 0, list: [] });
+        setRouteError(false);
+        return;
       }
 
       setIsCalculatingRoute(true);
-      
+      setRouteError(false);
+
       const endpoints = [
         "https://router.project-osrm.org/route/v1/driving",
         "https://routing.openstreetmap.de/routed-car/route/v1/driving"
       ];
-      
+
       let routeFound = false;
 
       for (let i = 0; i < endpoints.length; i++) {
         if (routeFound) break;
 
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 15000); 
+        const timeoutId = setTimeout(() => controller.abort(), 10000); 
 
         try {
           const response = await fetch(
-            `${endpoints[i]}/${originCity.lon},${originCity.lat};${destCity.lon},${destCity.lat}?overview=full&geometries=geojson`,
+            `${endpoints[i]}/${originCity.lon},${originCity.lat};${destCity.lon},${destCity.lat}?overview=simplified&geometries=geojson`,
             { signal: controller.signal }
           );
           
@@ -616,22 +604,42 @@ export default function App() {
             setDistanceKm(exactKm.toString());
             setRouteGeometry(geo);
 
-            // Detección automática de Peajes
-            const tolls = detectTollsInRoute(geo, false);
+            const tolls = detectTollsInRoute(geo);
             setDetectedTolls(tolls);
             routeFound = true;
           }
         } catch (err) {
-          console.warn(`Servidor de rutas ${i + 1} falló. Intentando servidor de respaldo...`);
+          console.warn(`Servidor de rutas ${i + 1} falló. Intentando siguiente...`);
         } finally {
           clearTimeout(timeoutId);
         }
       }
 
+      // 🔥 FALLBACK DIRECTO (Si falla todo el ruteo)
       if (!routeFound) {
-        setDistanceKm("0");
-        setRouteGeometry(null);
-        setDetectedTolls({ total: 0, list: [] });
+        console.warn("⚠️ Usando fallback de línea directa.");
+
+        const fallbackDist = calculateHaversineDistance(
+          originCity.lat,
+          originCity.lon,
+          destCity.lat,
+          destCity.lon
+        );
+
+        const fakeGeometry = {
+          coordinates: [
+            [originCity.lon, originCity.lat],
+            [destCity.lon, destCity.lat]
+          ]
+        };
+
+        setDistanceKm(fallbackDist.toString());
+        setRouteGeometry(fakeGeometry);
+
+        const tolls = detectTollsInRoute(fakeGeometry, true);
+        setDetectedTolls(tolls);
+
+        setRouteError(true);
       }
 
       setIsCalculatingRoute(false);
@@ -775,7 +783,7 @@ export default function App() {
   }, [cneStations]);
 
   const availableComunas = React.useMemo(() => {
-    const map = new globalThis.Map();
+    const map = new Map();
     cneStations.forEach((s) => {
       if (s.comuna && !map.has(s.comuna)) {
         map.set(s.comuna, s.regionName);
@@ -819,12 +827,188 @@ export default function App() {
     return new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(safeValue);
   }
 
+  const handleSwapCities = () => {
+    const temp = originCity;
+    setOriginCity(destCity);
+    setDestCity(temp);
+  };
+
   const fuelOptionsCarga = ["93", "95", "97", "diesel", "parafina"];
 
   const indexOfLastItem = currentPage * ITEMS_PER_PAGE;
   const indexOfFirstItem = indexOfLastItem - ITEMS_PER_PAGE;
   const currentStationsPage = filteredStationsCarga.slice(indexOfFirstItem, indexOfLastItem);
   const totalPages = Math.ceil(filteredStationsCarga.length / ITEMS_PER_PAGE);
+
+  // --- COMPONENTES PARA PANELES SEPARADOS EN DESKTOP ---
+  
+  const CargaMainContent = (
+    cargaComuna && filteredStationsCarga.length > 0 && (
+      <div className="space-y-4 animate-in fade-in duration-500 mx-6 lg:mx-0 flex flex-col h-full pb-6 lg:pb-0">
+        <div className="flex items-center justify-between ml-2 shrink-0">
+           <h3 className="text-sm font-extrabold text-slate-800 uppercase tracking-wide">Estaciones</h3>
+           <span className="text-[10px] font-bold text-slate-500 bg-slate-200 px-2 py-0.5 rounded-full">{filteredStationsCarga.length} resultados</span>
+        </div>
+
+        <div className="w-full h-48 lg:flex-1 lg:min-h-[300px] shrink-0 rounded-[2rem] overflow-hidden shadow-sm border-[6px] border-white relative bg-slate-200">
+          {stationsMapUrl ? (
+            <iframe src={stationsMapUrl} title="Mapa Estaciones" width="100%" height="100%" style={{ border: 0 }} sandbox="allow-scripts allow-same-origin" />
+          ) : (
+            <div className="absolute inset-0 flex items-center justify-center text-slate-400"><Loader2 className="w-6 h-6 animate-spin" /></div>
+          )}
+          <div className="absolute top-3 left-3 bg-white/90 backdrop-blur-sm text-[10px] font-bold px-3 py-1.5 rounded-xl shadow-sm text-slate-700">Toca un pin para verla</div>
+        </div>
+
+        <div className="flex flex-col gap-3 flex-1 lg:overflow-y-auto no-scrollbar lg:pr-2">
+          {currentStationsPage.map((station, idx) => {
+            const isSelected = currentStation?.id === station.id;
+            const isCheapest = currentPage === 1 && idx === 0 && !station.isOutdated;
+            const pObj = station.precios[fuelType];
+            const bestPrice = getBestPrice(pObj);
+            const hasAuto = pObj?.autoservicio > 0;
+            const hasAsis = pObj?.asistido > 0;
+
+            return (
+              <div key={station.id} onClick={() => setCurrentStation(station)} className={`w-full shrink-0 flex items-center justify-between p-4 rounded-[1.5rem] cursor-pointer transition-all duration-300 ${isSelected ? "bg-slate-900 shadow-xl scale-[1.02]" : "bg-white shadow-[0_4px_20px_rgb(0,0,0,0.03)] hover:shadow-md"}`}>
+                <div className="flex flex-col flex-1 overflow-hidden pr-2">
+                  <div className="flex items-center space-x-2 mb-1">
+                    {station.logo ? (<img src={station.logo} alt={station.distribuidor} className="h-6 w-6 object-contain rounded-full bg-white p-0.5" onError={(e) => { e.target.style.display = "none"; e.target.nextSibling.style.display = "block"; }} />) : null}
+                    <Fuel className={`w-5 h-5 ${isSelected ? 'text-slate-300' : 'text-slate-400'}`} style={{ display: station.logo ? "none" : "block" }} />
+                    <span className={`font-black text-sm truncate ${isSelected ? 'text-white' : 'text-slate-800'}`}>{station.distribuidor}</span>
+                    {isCheapest && <span className="text-[10px] font-extrabold text-emerald-800 bg-emerald-400/20 rounded-full px-1.5 py-0.5 ml-1 shrink-0 flex items-center"><TrendingUp className="w-2.5 h-2.5 mr-0.5" /> Top 1</span>}
+                  </div>
+                  <span className={`text-xs truncate font-medium ${isSelected ? 'text-slate-400' : 'text-slate-500'}`} title={station.direccion}>{station.direccion}</span>
+                  <div className="flex items-center mt-2">
+                    <span className={`text-[10px] flex items-center font-bold ${station.isOutdated ? "text-red-400" : isSelected ? "text-slate-400" : "text-slate-400"}`}>
+                      {station.isOutdated ? <AlertCircle className="w-3 h-3 mr-1" /> : <Clock className="w-3 h-3 mr-1" />}
+                      {station.isOutdated ? "Desactualizado" : station.actualizacion ? station.actualizacion.split(" ")[0] : "--"}
+                    </span>
+                  </div>
+                </div>
+                <div className="flex flex-col items-end justify-center shrink-0 pl-3 border-l border-white/10 min-w-[80px]">
+                  <span className={`text-2xl font-black tracking-tight ${isSelected ? 'text-white' : 'text-slate-900'}`}>{formatCLP(bestPrice)}</span>
+                  {hasAuto && hasAsis && pObj.autoservicio !== pObj.asistido ? (
+                    <div className={`text-[9px] font-bold mt-1 flex flex-col items-end leading-tight ${isSelected ? 'text-slate-400' : 'text-slate-400'}`}>
+                      <span className={isSelected ? 'text-blue-300' : 'text-blue-500'}>Auto: {formatCLP(pObj.autoservicio)}</span>
+                      <span>Asis: {formatCLP(pObj.asistido)}</span>
+                    </div>
+                  ) : hasAuto ? (
+                    <span className={`text-[9px] font-bold uppercase mt-1 ${isSelected ? 'text-blue-300' : 'text-blue-500'}`}>Autoservicio</span>
+                  ) : hasAsis ? (
+                    <span className={`text-[9px] font-bold uppercase mt-1 ${isSelected ? 'text-slate-400' : 'text-slate-400'}`}>Asistido</span>
+                  ) : null}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        
+        {totalPages > 1 && (
+          <div className="flex justify-between items-center mt-4 px-2 shrink-0">
+            <button onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} disabled={currentPage === 1} className="w-10 h-10 flex items-center justify-center bg-white text-slate-800 rounded-full shadow-sm disabled:opacity-50 transition-active active:scale-95"><ChevronLeft className="w-5 h-5" /></button>
+            <span className="text-xs font-bold text-slate-500">Página {currentPage} de {totalPages}</span>
+            <button onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="w-10 h-10 flex items-center justify-center bg-white text-slate-800 rounded-full shadow-sm disabled:opacity-50 transition-active active:scale-95"><ChevronRight className="w-5 h-5" /></button>
+          </div>
+        )}
+      </div>
+    )
+  );
+
+  const ViajeMainContent = (
+    originCity && destCity && (
+      <div className="mx-6 lg:mx-0 animate-in fade-in slide-in-from-bottom-4 duration-500 flex flex-col h-full pb-6 lg:pb-0">
+        <div className="flex items-center justify-between mb-3 px-2 shrink-0">
+          <span className="text-sm font-extrabold text-slate-800 uppercase tracking-wide">Ruta calculada</span>
+          {isCalculatingRoute ? (
+            <div className="flex items-center text-blue-600 text-xs font-bold bg-blue-50 px-2 py-1 rounded-lg">
+              <Loader2 className="w-3 h-3 animate-spin mr-1.5" /> Procesando...
+            </div>
+          ) : (
+            <span className="text-xs font-bold text-slate-600 bg-slate-200 px-2.5 py-1 rounded-lg">
+              {displayDistanceKm} km
+            </span>
+          )}
+        </div>
+        
+        {routeError && (
+          <div className="flex items-center text-[10px] text-amber-700 bg-amber-50 p-2.5 rounded-xl border border-amber-200 mb-3 shrink-0">
+            <AlertCircle className="w-4 h-4 mr-2 shrink-0" />
+            Servidores GPS públicos saturados. Mostrando estimación de ruta en línea recta.
+          </div>
+        )}
+
+        <div className="relative h-48 lg:flex-1 lg:min-h-[400px] shrink-0 rounded-[2rem] overflow-hidden shadow-sm border-[6px] border-white bg-slate-200">
+          {isCalculatingRoute ? (
+            <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-400 bg-slate-100">
+              <MapIcon className="w-8 h-8 mb-2 opacity-50" />
+              <span className="text-xs font-semibold">Trazando ruta...</span>
+            </div>
+          ) : (
+            <>
+              <iframe key={`map-${originCity.lat}-${destCity.lat}-${isRoundTrip}`} src={mapUrl} title="Mapa de la ruta" width="100%" height="100%" style={{ border: 0 }} sandbox="allow-scripts allow-same-origin" />
+              <div className="absolute bottom-3 left-1/2 -translate-x-1/2 bg-white/90 backdrop-blur-md px-4 py-2.5 rounded-full shadow-lg flex items-center gap-3 z-20 cursor-pointer" onClick={() => setIsRoundTrip(!isRoundTrip)}>
+                 <span className="text-[13px] font-bold text-slate-800 whitespace-nowrap select-none">Ida y vuelta</span>
+                 <button className={`w-11 h-6 rounded-full relative transition-colors ${isRoundTrip ? 'bg-blue-600' : 'bg-slate-300'}`}>
+                    <div className={`w-4 h-4 rounded-full bg-white absolute top-1 transition-transform ${isRoundTrip ? 'translate-x-6' : 'translate-x-1'}`} />
+                 </button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    )
+  );
+
+  const FooterContent = (
+    <>
+      {calcMode === "carga" && currentStation && (
+        <div className="bg-slate-50 p-3 rounded-2xl mb-4 border border-slate-100 flex gap-2">
+          <div className="relative flex-[2]">
+            <input type="number" min="0" step={chargeMode === "liters" ? "0.1" : "1000"} value={inputValue} onChange={(e) => setInputValue(e.target.value)} className="w-full p-3 pl-4 pr-2 text-lg border border-slate-200 rounded-xl focus:ring-2 focus:ring-slate-900 outline-none font-black text-slate-900 bg-white" placeholder="0" />
+          </div>
+          <select value={chargeMode} onChange={(e) => { setChargeMode(e.target.value); setInputValue(""); }} className="flex-1 p-3 text-sm font-bold bg-slate-900 text-white rounded-xl outline-none cursor-pointer appearance-none text-center" >
+            <option value="money">Pesos ($)</option>
+            <option value="liters">Litros (L)</option>
+          </select>
+        </div>
+      )}
+
+      <div className="flex justify-between items-end mb-5">
+        <div className="flex flex-col">
+          <span className="text-[13px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+            {calcMode === "carga" ? chargeMode === "money" ? "Recibirás aprox." : "Costo estimado" : "Costo Total Viaje"}
+          </span>
+          <span className="text-[2.5rem] font-black text-slate-900 tracking-tight leading-none">
+            {calcMode === "carga" && chargeMode === "money" ? `${resultValue.toFixed(1)} Lts` : formatCLP(resultValue)}
+          </span>
+        </div>
+        
+        {calcMode === "viaje" && resultValue > 0 && (
+          <div className="flex flex-col items-end gap-1.5 pb-1">
+            <span className="text-[11px] font-bold text-slate-400 flex items-center bg-slate-50 px-2 py-0.5 rounded-md"><Droplets className="w-3 h-3 mr-1 text-slate-400" /> {formatCLP(bencinaTotal)}</span>
+            <span className="text-[11px] font-bold text-slate-400 flex items-center bg-slate-50 px-2 py-0.5 rounded-md"><Ticket className="w-3 h-3 mr-1 text-slate-400" /> {formatCLP(peajeTotal)}</span>
+          </div>
+        )}
+      </div>
+
+      {calcMode === "viaje" && (
+        <button 
+          onClick={() => { if(detectedTolls.list.length > 0) setShowTollsModal(true) }} 
+          disabled={detectedTolls.list.length === 0}
+          className="w-full bg-slate-900 text-white rounded-[1.25rem] py-4 font-extrabold text-[15px] flex items-center justify-center gap-2 shadow-xl shadow-slate-900/20 active:scale-[0.98] transition-all disabled:opacity-50 disabled:active:scale-100"
+        >
+          <Ticket className="w-5 h-5" />
+          {detectedTolls.list.length > 0 ? 'Ver desglose de peajes' : 'Sin peajes en la ruta'}
+        </button>
+      )}
+
+      {calcMode === "carga" && !currentStation && (
+         <div className="w-full bg-slate-100 text-slate-400 rounded-[1.25rem] py-4 font-extrabold text-[15px] flex items-center justify-center gap-2 text-center">
+            Selecciona una estación para simular
+         </div>
+      )}
+    </>
+  );
 
   if (isLoading) {
     return (
@@ -836,317 +1020,217 @@ export default function App() {
   }
 
   return (
-    <div className="bg-slate-50 flex items-center justify-center font-sans text-slate-800 h-[100dvh] sm:h-screen sm:p-8">
-      <div className="w-full max-w-md bg-white sm:rounded-3xl sm:shadow-2xl sm:border border-slate-100 flex flex-col h-full sm:h-[850px] overflow-hidden relative">
+    <div className="bg-slate-100 flex items-center justify-center font-sans text-slate-800 min-h-screen sm:p-6 lg:p-8">
+      <div className="w-full max-w-md lg:max-w-5xl bg-[#f8fafc] sm:rounded-[3rem] lg:rounded-[2rem] sm:shadow-2xl flex flex-col lg:flex-row h-[100dvh] sm:h-[850px] lg:h-[80vh] lg:min-h-[700px] overflow-hidden relative">
         
-        {/* HEADER */}
-        <div className="shrink-0 bg-blue-600 p-5 sm:p-6 text-white relative shadow-md z-20">
-          <div className="absolute top-4 right-4 flex flex-col items-end gap-1">
-            <div className={`flex items-center space-x-1 px-2 py-1 rounded-full text-[10px] font-medium border ${authStatus === "success" ? "bg-emerald-500/20 border-emerald-400 text-emerald-50" : authStatus === "error" ? "bg-red-500/20 border-red-400 text-red-50" : "bg-blue-700/50 border-blue-400"}`}>
-              {authStatus === "success" ? ( <ShieldCheck className="w-3 h-3" /> ) : ( <AlertCircle className="w-3 h-3" /> )}
-              <span>{authStatus === "success" ? "Auth CNE OK" : "Auth Falló"}</span>
+        {/* PANEL IZQUIERDO (CONTROLES) */}
+        <div className="flex flex-col w-full lg:w-[420px] h-full relative z-20 bg-[#f8fafc] lg:border-r border-slate-200 shrink-0">
+           
+          {/* HEADER LIMPIO TIPO APP */}
+          <div className="flex items-center justify-between px-6 pt-8 pb-4 shrink-0 bg-[#f8fafc]">
+            <h1 className="text-[22px] font-black tracking-tight text-slate-900">
+              {calcMode === 'viaje' ? 'Calculadora de viaje' : 'Buscar Combustible'}
+            </h1>
+            <div className="flex items-center gap-3">
+               {authStatus === 'error' && <AlertCircle className="w-5 h-5 text-red-500" />}
+               <button className="p-2.5 bg-white rounded-full shadow-sm text-slate-600 hover:bg-slate-50 transition-colors">
+                  <Settings className="w-5 h-5" />
+               </button>
             </div>
           </div>
-          <div className="flex items-center space-x-3 mb-2 mt-2">
-            <Fuel className="w-8 h-8" />
-            <h1 className="text-2xl font-bold tracking-tight">BencinaApp 🇨🇱</h1>
-          </div>
-          <p className="text-blue-100 text-sm opacity-90">Planifica tu ruta o consulta precios.</p>
-        </div>
 
-        {/* CONTENIDO SCROLLABLE */}
-        <div className="flex-1 overflow-y-auto bg-slate-50 p-4 sm:p-6 space-y-6 relative z-10">
-          <div className="sticky top-0 z-50 flex p-1.5 bg-white rounded-xl shadow-sm border border-slate-100">
+          {/* SWITCHER DE MODOS */}
+          <div className="mx-6 p-1.5 bg-slate-200/60 rounded-[1.25rem] flex shrink-0 mb-2">
             <button
               onClick={() => { setCalcMode("viaje"); setInputValue(""); if (fuelType === "parafina") setFuelType("93"); }}
-              className={`flex-1 py-2.5 text-sm font-bold rounded-lg transition-all ${calcMode === "viaje" ? "bg-blue-50 text-blue-700 shadow-sm border border-blue-100" : "text-slate-500 hover:bg-slate-50"}`}
+              className={`flex-1 flex items-center justify-center gap-2 py-3 text-sm font-bold rounded-xl transition-all duration-300 ${calcMode === "viaje" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
             >
-              <Route className="w-4 h-4 inline-block mr-1.5 mb-0.5" /> Viaje
+              <Route className="w-4 h-4" /> Viaje
             </button>
             <button
               onClick={() => { setCalcMode("carga"); setInputValue(""); }}
-              className={`flex-1 py-2.5 text-sm font-bold rounded-lg transition-all ${calcMode === "carga" ? "bg-blue-50 text-blue-700 shadow-sm border border-blue-100" : "text-slate-500 hover:bg-slate-50"}`}
+              className={`flex-1 flex items-center justify-center gap-2 py-3 text-sm font-bold rounded-xl transition-all duration-300 ${calcMode === "carga" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
             >
-              <MapPin className="w-4 h-4 inline-block mr-1.5 mb-0.5" /> Por Ciudad
+              <Fuel className="w-4 h-4" /> Carga
             </button>
           </div>
 
-          {calcMode === "carga" ? (
-            <div className="space-y-6">
-              <div className="space-y-3">
-                <label className="flex items-center text-sm font-bold text-slate-700"><Droplets className="w-4 h-4 mr-2 text-blue-500" /> 1. ¿Qué buscas?</label>
-                <div className="flex flex-wrap gap-2">
-                  {fuelOptionsCarga.map((type) => {
-                    const isSelected = fuelType === type;
-                    return (
-                      <button key={type} onClick={() => setFuelType(type)} className={`px-4 py-2 rounded-full text-xs font-bold transition-all border-2 ${isSelected ? "bg-blue-600 text-white border-blue-600 shadow-md" : "bg-white text-slate-600 border-slate-200 hover:border-blue-300"}`}>
-                        {type === "diesel" ? "Diesel" : type === "parafina" ? "Parafina" : type + " Oct"}
-                      </button>
-                    )
-                  })}
-                </div>
-              </div>
-
-              <div className="space-y-3 relative z-40">
-                <label className="flex items-center text-sm font-bold text-slate-700"><MapPin className="w-4 h-4 mr-2 text-blue-500" /> 2. ¿En qué comuna?</label>
-                <ComunaAutocomplete placeholder="Escribe tu comuna..." value={cargaComuna} onSelect={(c) => { setCargaComuna(c); setCurrentStation(null); }} comunas={availableComunas} />
-              </div>
-
-              {cargaComuna && filteredStationsCarga.length > 0 && (
-                <div className="space-y-4 animate-in fade-in duration-500 relative z-10">
-                  <label className="flex items-center text-sm font-bold text-slate-700"><Store className="w-4 h-4 mr-2 text-emerald-500" /> 3. Selecciona tu estación</label>
-
-                  <div className="w-full h-44 rounded-2xl overflow-hidden border-2 border-slate-200 shadow-sm relative bg-slate-200">
-                    {stationsMapUrl ? (
-                      <iframe src={stationsMapUrl} title="Mapa Estaciones" width="100%" height="100%" style={{ border: 0 }} sandbox="allow-scripts allow-same-origin" />
-                    ) : (
-                      <div className="absolute inset-0 flex items-center justify-center text-slate-400"><Loader2 className="w-6 h-6 animate-spin" /></div>
-                    )}
-                    <div className="absolute top-2 left-2 bg-white/90 backdrop-blur-sm text-[10px] font-bold px-2 py-1 rounded shadow-sm text-slate-600 border border-slate-200">Toca un pin para verla</div>
+          {/* CONTROLES SCROLLABLES */}
+          <div className="flex-1 overflow-y-auto pb-40 lg:pb-0 no-scrollbar">
+            {calcMode === "viaje" ? (
+              <div className="space-y-6 pb-6 lg:pb-6">
+                
+                {/* TARJETA ORIGEN/DESTINO */}
+                <div className="mx-6 mt-4 bg-white rounded-[2rem] p-4 shadow-[0_8px_30px_rgb(0,0,0,0.04)] relative">
+                  <div className="absolute right-5 top-1/2 -translate-y-1/2 z-10">
+                    <button onClick={handleSwapCities} className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center text-slate-500 hover:bg-slate-200 transition-colors active:scale-95">
+                      <ArrowUpDown className="w-4 h-4" />
+                    </button>
                   </div>
 
-                  <div className="flex flex-col gap-3 mt-3">
-                    {currentStationsPage.map((station, idx) => {
-                      const isSelected = currentStation?.id === station.id;
-                      const isCheapest = currentPage === 1 && idx === 0 && !station.isOutdated;
-                      const pObj = station.precios[fuelType];
-                      const bestPrice = getBestPrice(pObj);
-                      const hasAuto = pObj?.autoservicio > 0;
-                      const hasAsis = pObj?.asistido > 0;
-
-                      return (
-                        <div key={station.id} onClick={() => setCurrentStation(station)} className={`w-full flex items-center justify-between p-4 rounded-2xl border-2 cursor-pointer transition-all duration-300 ${isSelected ? "border-blue-500 bg-blue-50 shadow-md ring-1 ring-blue-200" : "border-slate-200 bg-white hover:border-blue-300 hover:shadow-sm"}`}>
-                          <div className="flex flex-col flex-1 overflow-hidden pr-2">
-                            <div className="flex items-center space-x-2 mb-1">
-                              {station.logo ? (<img src={station.logo} alt={station.distribuidor} className="h-5 w-5 object-contain rounded" onError={(e) => { e.target.style.display = "none"; e.target.nextSibling.style.display = "block"; }} />) : null}
-                              <Fuel className="w-4 h-4 text-slate-400" style={{ display: station.logo ? "none" : "block" }} />
-                              <span className="font-bold text-slate-700 text-sm truncate">{station.distribuidor}</span>
-                              {isCheapest && <span className="text-[10px] font-extrabold text-emerald-800 bg-emerald-100 rounded-full px-1.5 py-0.5 ml-1 border border-emerald-200 shrink-0 flex items-center"><TrendingUp className="w-2.5 h-2.5 mr-0.5" /> Top 1</span>}
-                            </div>
-                            <span className="text-xs text-slate-500 truncate" title={station.direccion}>{station.direccion}</span>
-                            <div className="flex items-center mt-1.5">
-                              <span className={`text-[10px] flex items-center ${station.isOutdated ? "text-red-500 font-bold" : "text-slate-400"}`}>
-                                {station.isOutdated ? <AlertCircle className="w-3 h-3 mr-1" /> : <Clock className="w-3 h-3 mr-1" />}
-                                {station.isOutdated ? "Desactualizado" : station.actualizacion ? station.actualizacion.split(" ")[0] : "--"}
-                              </span>
-                            </div>
-                          </div>
-                          <div className="flex flex-col items-end justify-center shrink-0 pl-3 border-l border-slate-100 min-w-[80px]">
-                            <span className={`text-xl font-black ${station.isOutdated ? "text-slate-400" : "text-slate-800"}`}>{formatCLP(bestPrice)}</span>
-                            {hasAuto && hasAsis && pObj.autoservicio !== pObj.asistido ? (
-                              <div className="text-[9px] font-bold text-slate-400 mt-1 flex flex-col items-end leading-tight">
-                                <span className="text-blue-500">Auto: {formatCLP(pObj.autoservicio)}</span>
-                                <span>Asis: {formatCLP(pObj.asistido)}</span>
-                              </div>
-                            ) : hasAuto ? (
-                              <span className="text-[9px] font-bold text-blue-500 uppercase mt-1">Autoservicio</span>
-                            ) : hasAsis ? (
-                              <span className="text-[9px] font-bold text-slate-400 uppercase mt-1">Asistido</span>
-                            ) : null}
-                            {isSelected && <Check className="w-5 h-5 text-blue-600 mt-1" />}
-                          </div>
+                  <div className="flex relative pr-12">
+                     <div className="w-10 flex flex-col items-center justify-center pt-4 pb-4 relative">
+                        <div className="w-[14px] h-[14px] rounded-full border-[3px] border-blue-500 bg-white z-10 relative"></div>
+                        <div className="absolute top-7 bottom-7 w-[2px] border-l-2 border-dashed border-slate-200 left-1/2 -translate-x-1/2"></div>
+                        <MapPin className="w-[18px] h-[18px] text-red-500 z-10 relative fill-red-100 mt-auto" />
+                     </div>
+                     <div className="flex-1 flex flex-col pl-2">
+                        <div className="relative border-b border-slate-100 pb-2">
+                           <RouteCityAutocomplete placeholder="¿Desde dónde viajas?" value={originCity} onSelect={setOriginCity} comunasData={comunasDataForRouting} />
                         </div>
-                      );
+                        <div className="relative pt-2">
+                           <RouteCityAutocomplete placeholder="¿Hacia dónde vas?" value={destCity} onSelect={setDestCity} comunasData={comunasDataForRouting} />
+                        </div>
+                     </div>
+                  </div>
+                </div>
+
+                {/* TARJETA VEHÍCULO / AJUSTES */}
+                <div className="mx-6 space-y-3">
+                   <h3 className="text-sm font-extrabold text-slate-800 ml-2 uppercase tracking-wide">Vehículo</h3>
+                   <div className="bg-white rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] overflow-hidden">
+                      <div className="flex items-center justify-between p-4 border-b border-slate-50">
+                         <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-600"><Car className="w-5 h-5"/></div>
+                            <span className="font-bold text-slate-700">Rendimiento</span>
+                         </div>
+                         <div className="flex items-center gap-1 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200">
+                            <input type="number" step="0.1" min="1" className="w-10 bg-transparent outline-none font-black text-right text-slate-900" value={efficiencyKml} onChange={(e)=>setEfficiencyKml(e.target.value)} />
+                            <span className="text-sm font-semibold text-slate-500">Km/L</span>
+                         </div>
+                      </div>
+                      <div className="flex items-center justify-between p-4 border-b border-slate-50">
+                         <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-orange-50 flex items-center justify-center text-orange-500"><Fuel className="w-5 h-5"/></div>
+                            <span className="font-bold text-slate-700">Combustible</span>
+                         </div>
+                         <div className="relative">
+                           <select className="bg-slate-50 pl-3 pr-8 py-2 rounded-xl border border-slate-200 font-black text-slate-900 outline-none cursor-pointer appearance-none" value={fuelType} onChange={(e)=>setFuelType(e.target.value)}>
+                              <option value="93">93 oct</option>
+                              <option value="95">95 oct</option>
+                              <option value="97">97 oct</option>
+                              <option value="diesel">Diesel</option>
+                           </select>
+                           <ChevronDown className="absolute right-2.5 top-2.5 w-4 h-4 text-slate-400 pointer-events-none" />
+                         </div>
+                      </div>
+                      <div className="flex items-center justify-between p-4">
+                         <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-600"><Ticket className="w-5 h-5"/></div>
+                            <span className="font-bold text-slate-700">Peajes y TAG</span>
+                         </div>
+                         <div className="flex items-center gap-2">
+                           <span className="text-xs font-bold text-emerald-600">Automático</span>
+                           <div className="w-10 h-6 bg-emerald-500 rounded-full relative flex items-center px-1">
+                             <div className="w-4 h-4 bg-white rounded-full absolute right-1"></div>
+                           </div>
+                         </div>
+                      </div>
+                   </div>
+                </div>
+
+                {/* VISTA MAPA MOBILE */}
+                <div className="lg:hidden">
+                   {ViajeMainContent}
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-6 pb-6 lg:pb-6">
+                {/* SECCIÓN CARGA TIPO DE COMBUSTIBLE */}
+                <div className="mx-6 mt-4 space-y-3">
+                  <h3 className="text-sm font-extrabold text-slate-800 ml-2 uppercase tracking-wide">Tipo de combustible</h3>
+                  <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
+                    {fuelOptionsCarga.map((type) => {
+                      const isSelected = fuelType === type;
+                      return (
+                        <button key={type} onClick={() => setFuelType(type)} className={`px-5 py-3 rounded-2xl text-sm font-bold transition-all whitespace-nowrap ${isSelected ? "bg-slate-900 text-white shadow-md" : "bg-white text-slate-600 shadow-[0_4px_20px_rgb(0,0,0,0.03)] hover:bg-slate-50"}`}>
+                          {type === "diesel" ? "Diesel" : type === "parafina" ? "Parafina" : type + " Octanos"}
+                        </button>
+                      )
                     })}
                   </div>
-                  
-                  {totalPages > 1 && (
-                    <div className="flex justify-between items-center mt-2 bg-slate-100 p-2 rounded-xl border border-slate-200">
-                      <button onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} disabled={currentPage === 1} className="flex items-center px-3 py-2 bg-white text-slate-600 text-xs font-bold rounded-lg shadow-sm disabled:opacity-50 transition-active active:scale-95"><ChevronLeft className="w-4 h-4 mr-1" /> Ant</button>
-                      <span className="text-xs font-bold text-slate-500">Pág {currentPage} de {totalPages}</span>
-                      <button onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="flex items-center px-3 py-2 bg-white text-slate-600 text-xs font-bold rounded-lg shadow-sm disabled:opacity-50 transition-active active:scale-95">Sig <ChevronRight className="w-4 h-4 ml-1" /></button>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="space-y-5">
-              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4 relative z-40">
-                <div>
-                  <label className="flex items-center text-sm font-bold text-slate-700 mb-2">
-                    <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center mr-2"><div className="w-2.5 h-2.5 bg-blue-500 rounded-full" /></div>Punto de inicio
-                  </label>
-                  <RouteCityAutocomplete placeholder="¿Desde dónde viajas?" value={originCity} onSelect={setOriginCity} comunasData={comunasDataForRouting} />
                 </div>
 
-                <div>
-                  <label className="flex items-center text-sm font-bold text-slate-700 mb-2">
-                    <div className="w-6 h-6 rounded-full bg-red-100 flex items-center justify-center mr-2"><MapPin className="w-3.5 h-3.5 text-red-500" /></div>Punto de destino
-                  </label>
-                  <RouteCityAutocomplete placeholder="¿Hacia dónde vas?" value={destCity} onSelect={setDestCity} comunasData={comunasDataForRouting} />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4 pt-3 border-t border-slate-100">
-                  <div>
-                    <label className="flex items-center text-xs font-bold text-slate-700 mb-2"><Gauge className="w-4 h-4 mr-1.5 text-slate-400" /> Rendimiento</label>
-                    <div className="relative">
-                      <input type="number" min="1" step="0.1" value={efficiencyKml} onChange={(e) => setEfficiencyKml(e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-[16px] font-bold text-slate-700" />
-                      <span className="absolute right-4 top-3 text-slate-400 text-sm font-medium">km/L</span>
-                    </div>
-                  </div>
-                  <div>
-                    <label className="flex items-center text-xs font-bold text-slate-700 mb-2"><Fuel className="w-4 h-4 mr-1.5 text-slate-400" /> Combustible</label>
-                    <div className="relative">
-                      <select value={fuelType} onChange={(e) => setFuelType(e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-[16px] font-bold text-slate-700 appearance-none cursor-pointer">
-                        <option value="93">93 Octanos</option>
-                        <option value="95">95 Octanos</option>
-                        <option value="97">97 Octanos</option>
-                        <option value="diesel">Diesel</option>
-                      </select>
-                      <ChevronDown className="absolute right-3 top-3.5 w-4 h-4 text-slate-400 pointer-events-none" />
-                    </div>
+                {/* SECCIÓN CARGA UBICACIÓN */}
+                <div className="mx-6 space-y-3">
+                  <h3 className="text-sm font-extrabold text-slate-800 ml-2 uppercase tracking-wide">Ubicación</h3>
+                  <div className="bg-white rounded-[2rem] p-2 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+                    <ComunaAutocomplete placeholder="¿En qué comuna buscas?" value={cargaComuna} onSelect={(c) => { setCargaComuna(c); setCurrentStation(null); }} comunas={availableComunas} />
                   </div>
                 </div>
 
-                {/* Panel de Autodetección de Peajes CON MODAL */}
-                <div className="pt-3 border-t border-slate-100">
-                   <div className="flex items-center justify-between mb-2">
-                     <label className="flex items-center text-xs font-bold text-slate-700">
-                        <Ticket className="w-4 h-4 mr-1.5 text-slate-400" /> Peajes y TAG 
-                     </label>
-                     <span className="text-[9px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">AUTOMÁTICO</span>
-                   </div>
-                   
-                   <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex justify-between items-center shadow-inner">
-                      <span className="text-[16px] font-black text-slate-700">{formatCLP(peajeTotal)}</span>
-                      {detectedTolls.list.length > 0 ? (
-                        <span className="text-[10px] text-blue-600 font-bold bg-blue-100 px-2 py-1 rounded-full uppercase">{detectedTolls.list.length} detectados</span>
-                      ) : (
-                        <span className="text-[10px] text-slate-400 font-bold uppercase">Sin peajes</span>
-                      )}
-                   </div>
-
-                   {/* Botón Pop-up */}
-                   {detectedTolls.list.length > 0 && (
-                      <button onClick={() => setShowTollsModal(true)} className="mt-3 w-full flex justify-between items-center p-3 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-xl active:scale-[0.98] transition-all">
-                         <span className="text-xs font-bold text-blue-700 flex items-center">
-                           <Eye className="w-4 h-4 mr-1.5" /> Ver desglose de peajes
-                         </span>
-                         <ArrowRight className="w-4 h-4 text-blue-500" />
-                      </button>
-                   )}
-                </div>
-
-                <div className="flex justify-between items-center pt-1">
-                  <div className="text-xs text-slate-500 flex items-center">
-                    Ref bencina: <strong className="text-slate-700 ml-1 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">{pricePerLiter > 0 ? formatCLP(pricePerLiter) : "--"}</strong>/L
-                  </div>
-                  <label className="flex items-center space-x-2 cursor-pointer bg-slate-50 hover:bg-slate-100 transition-colors px-3 py-2 rounded-lg border border-slate-200">
-                    <input type="checkbox" className="rounded text-blue-500 accent-blue-500 w-4 h-4" checked={isRoundTrip} onChange={(e) => setIsRoundTrip(e.target.checked)} />
-                    <span className="text-xs font-bold text-slate-700">Ida y vuelta</span>
-                  </label>
+                {/* VISTA MAPA/LISTA MOBILE */}
+                <div className="lg:hidden">
+                   {CargaMainContent}
                 </div>
               </div>
-
-              <div className="flex items-center justify-between px-2">
-                <div className="flex items-center text-sm font-semibold text-slate-600">
-                  <Route className="w-4 h-4 mr-2 text-emerald-500" /> Distancia total:
-                </div>
-                {isCalculatingRoute ? (
-                  <div className="flex items-center text-emerald-600 text-sm font-bold">
-                    <Loader2 className="w-4 h-4 animate-spin mr-1.5" /> GPS...
-                  </div>
-                ) : (
-                  <span className="text-sm font-bold text-slate-800 bg-emerald-100 text-emerald-800 px-2.5 py-0.5 rounded-full">
-                    {displayDistanceKm} km
-                  </span>
-                )}
-              </div>
-
-              {originCity && destCity && (
-                <div className="w-full h-44 rounded-2xl overflow-hidden border-2 border-slate-200 shadow-sm relative bg-slate-200">
-                  {isCalculatingRoute ? (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-400">
-                      <Loader2 className="w-6 h-6 animate-spin mb-2 text-emerald-500" />
-                      <span className="text-xs font-medium">Trazando ruta segura...</span>
-                    </div>
-                  ) : (
-                    <iframe key={`map-${originCity.lat}-${destCity.lat}-${isRoundTrip}`} src={mapUrl} title="Mapa de la ruta" width="100%" height="100%" style={{ border: 0 }} sandbox="allow-scripts allow-same-origin" />
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* PANEL INFERIOR FIJO */}
-        <div className="shrink-0 bg-white border-t border-slate-200 shadow-[0_-10px_30px_rgba(0,0,0,0.05)] p-4 sm:p-6 z-30">
-          {calcMode === "carga" && currentStation && (
-            <div className="bg-slate-50 p-3 rounded-xl mb-4 border border-slate-200">
-              <div className="flex justify-between items-center mb-2">
-                <span className="text-xs font-bold text-slate-500">Simulador de Carga</span>
-                <span className="text-[10px] font-bold text-blue-600 bg-blue-100 px-2 py-0.5 rounded-full border border-blue-200">{formatCLP(pricePerLiter)}/L</span>
-              </div>
-              <div className="flex gap-2">
-                <div className="relative flex-[2]">
-                  <input type="number" min="0" step={chargeMode === "liters" ? "0.1" : "1000"} value={inputValue} onChange={(e) => setInputValue(e.target.value)} className="w-full p-2.5 pl-3 pr-2 text-[16px] border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none font-bold text-slate-700" placeholder="0" />
-                </div>
-                <select value={chargeMode} onChange={(e) => { setChargeMode(e.target.value); setInputValue(""); }} className="flex-1 p-2 text-[16px] font-bold bg-white border border-slate-300 rounded-lg outline-none cursor-pointer" >
-                  <option value="money">Pesos ($)</option>
-                  <option value="liters">Litros (L)</option>
-                </select>
-              </div>
-            </div>
-          )}
-
-          <div className="flex items-center justify-between">
-            <div className="flex flex-col">
-              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
-                {calcMode === "carga" ? chargeMode === "money" ? "Recibirás aprox." : "Costo total aprox." : isRoundTrip ? "Costo Ida y Vuelta" : "Costo Total Viaje"}
-              </span>
-              <span className="text-3xl font-black text-slate-800 tracking-tight leading-none mt-1">
-                {calcMode === "carga" && chargeMode === "money" ? `${resultValue.toFixed(1)} Lts` : formatCLP(resultValue)}
-              </span>
-              {calcMode === "viaje" && (
-                <div className="text-[10px] text-slate-400 font-bold mt-2 flex items-center gap-2.5 uppercase tracking-widest">
-                  <span className="flex items-center"><Droplets className="w-3 h-3 mr-1 text-slate-300" /> {formatCLP(bencinaTotal)}</span>
-                  {peajeTotal > 0 && <span className="flex items-center"><Ticket className="w-3 h-3 mr-1 text-slate-300" /> {formatCLP(peajeTotal)}</span>}
-                </div>
-              )}
-            </div>
-            <div className="bg-blue-600 p-4.5 rounded-2xl text-white shadow-xl shadow-blue-200 active:scale-95 transition-all">
-              <Calculator className="w-7 h-7" />
-            </div>
+            )}
           </div>
+
+          {/* FOOTER INFERIOR (Costo Total y Botón) */}
+          <div className="absolute lg:relative bottom-0 left-0 right-0 bg-white rounded-t-[2.5rem] lg:rounded-none p-6 shadow-[0_-20px_40px_rgba(0,0,0,0.06)] lg:shadow-none lg:border-t lg:border-slate-200 z-30 pb-8 sm:pb-6 lg:p-6 lg:mt-auto">
+            {FooterContent}
+          </div>
+        </div>
+        
+        {/* ================= PANEL DERECHO (DESKTOP) ================= */}
+        <div className="hidden lg:flex flex-1 bg-slate-50/50 p-8 overflow-y-auto no-scrollbar relative flex-col">
+           {calcMode === 'carga' ? (
+               (cargaComuna && filteredStationsCarga.length > 0) ? (
+                   <div className="w-full h-full">{CargaMainContent}</div>
+               ) : (
+                   <div className="w-full h-full flex flex-col items-center justify-center text-slate-400 opacity-60">
+                      <MapPin className="w-16 h-16 mb-4" />
+                      <p className="text-lg font-bold text-center max-w-xs">Selecciona una comuna para ver las estaciones cercanas</p>
+                   </div>
+               )
+           ) : (
+               (originCity && destCity) ? (
+                   <div className="w-full h-full flex flex-col">{ViajeMainContent}</div>
+               ) : (
+                   <div className="w-full h-full flex flex-col items-center justify-center text-slate-400 opacity-60">
+                      <Route className="w-16 h-16 mb-4" />
+                      <p className="text-lg font-bold text-center max-w-xs">Ingresa tu punto de origen y destino para trazar la ruta</p>
+                   </div>
+               )
+           )}
         </div>
         
         {/* ================= MODAL DE PEAJES ================= */}
         {showTollsModal && (
-          <div className="absolute inset-0 z-[1000] bg-slate-900/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-4 sm:p-0">
-            <div className="bg-white w-full max-w-sm rounded-[2rem] shadow-2xl p-6 animate-in slide-in-from-bottom-8 duration-200 mb-4 sm:mb-0">
-               <div className="flex justify-between items-center mb-5">
-                  <h3 className="font-black text-slate-800 flex items-center text-lg">
-                     <Ticket className="w-5 h-5 mr-2 text-blue-500"/> Detalle de Peajes
+          <div className="fixed inset-0 z-[1000] bg-slate-900/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-4 sm:p-0">
+            <div className="bg-white w-full max-w-sm rounded-[2.5rem] shadow-2xl p-6 animate-in slide-in-from-bottom-8 duration-300 mb-4 sm:mb-0">
+               <div className="flex justify-between items-center mb-6">
+                  <h3 className="font-black text-slate-900 flex items-center text-xl">
+                     <Ticket className="w-6 h-6 mr-2 text-slate-900"/> Peajes en ruta
                   </h3>
-                  <button onClick={() => setShowTollsModal(false)} className="bg-slate-100 p-1.5 rounded-full hover:bg-slate-200 transition-colors">
-                     <X className="w-5 h-5 text-slate-500"/>
+                  <button onClick={() => setShowTollsModal(false)} className="bg-slate-100 p-2 rounded-full hover:bg-slate-200 transition-colors">
+                     <X className="w-5 h-5 text-slate-600"/>
                   </button>
                </div>
                
                <div className="max-h-64 overflow-y-auto space-y-2 pr-2 no-scrollbar">
                   {detectedTolls.list.map((t, i) => (
-                     <div key={i} className="flex justify-between items-center p-3.5 bg-slate-50 rounded-xl border border-slate-100">
-                        <span className="text-xs font-bold text-slate-600">{t.nombre}</span>
-                        <span className="text-sm font-black text-slate-800">{formatCLP(t.precio)}</span>
+                     <div key={i} className="flex justify-between items-center p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                        <span className="text-sm font-bold text-slate-700">{t.nombre}</span>
+                        <span className="text-[15px] font-black text-slate-900">{formatCLP(t.precio)}</span>
                      </div>
                   ))}
                </div>
                
-               <div className="mt-5 pt-4 border-t border-slate-200">
-                  <div className="flex justify-between items-center">
+               <div className="mt-6 pt-5 border-t border-slate-100">
+                  <div className="flex justify-between items-end mb-6">
                      <div className="flex flex-col">
-                       <span className="text-xs font-bold text-slate-500 uppercase">Total en Ruta</span>
-                       {isRoundTrip && <span className="text-[10px] font-black text-blue-500 bg-blue-100 px-2 py-0.5 rounded-md mt-1 w-fit">MULTIPLICADO x2</span>}
+                       <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">Total Peajes</span>
+                       {isRoundTrip && <span className="text-[10px] font-black text-blue-600 bg-blue-100 px-2 py-0.5 rounded-md mt-1.5 w-fit">IDA Y VUELTA (x2)</span>}
                      </div>
-                     <span className="text-2xl font-black text-slate-800">{formatCLP(peajeTotal)}</span>
+                     <span className="text-3xl font-black text-slate-900 leading-none">{formatCLP(peajeTotal)}</span>
                   </div>
-                  <button onClick={() => setShowTollsModal(false)} className="w-full mt-5 bg-blue-600 text-white py-4 rounded-xl font-black text-sm active:scale-95 transition-transform shadow-lg shadow-blue-200">
-                     Cerrar Detalle
+                  <button onClick={() => setShowTollsModal(false)} className="w-full bg-slate-900 text-white py-4 rounded-[1.25rem] font-bold text-[15px] active:scale-95 transition-transform shadow-xl shadow-slate-900/20">
+                     Cerrar
                   </button>
                </div>
             </div>
-            <style>{`.no-scrollbar::-webkit-scrollbar { display: none; } .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }`}</style>
           </div>
         )}
 

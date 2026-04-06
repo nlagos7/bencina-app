@@ -5,6 +5,10 @@
       "destination": "https://api.cne.cl/:path*"
     },
     {
+      "source": "/api-osrm/:path*",
+      "destination": "https://router.project-osrm.org/:path*"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }
