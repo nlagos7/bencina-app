@@ -9,6 +9,14 @@
       "destination": "https://router.project-osrm.org/:path*"
     },
     {
+      "source": "/api-openstreet/:path*",
+      "destination": "https://routing.openstreetmap.de/:path*"
+    },
+    {
+      "source": "/api-openroute/:path*",
+      "destination": "https://api.openrouteservice.org/:path*"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html" 
     }

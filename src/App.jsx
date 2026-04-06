@@ -137,7 +137,25 @@ const PEAJES_DB = [
   { id: "p_curanilahue", nombre: "Peaje Curanilahue (R160)", lat: -37.450, lon: -73.350, precio: 2500, tipo: "peaje" },
   { id: "p_pilpilco", nombre: "Peaje Pilpilco (R160)", lat: -37.600, lon: -73.400, precio: 2500, tipo: "peaje" },
 
-  // --- PÓRTICOS TAG URBANOS (Representativos de Santiago) ---
+  // --- MÁS PEAJES Y LATERALES ZONA SUR ---
+  { id: "p_paine", nombre: "Peaje Paine", lat: -33.90762, lon: -70.73124, precio: 3700, tipo: "peaje" },
+  { id: "p_rosario", nombre: "Peaje Rosario", lat: -34.34598, lon: -70.84077, precio: 900, tipo: "lateral" },
+  { id: "p_rengo", nombre: "Peaje Rengo", lat: -34.39999, lon: -70.87174, precio: 900, tipo: "lateral" },
+  { id: "p_sanfernando_lat", nombre: "Peaje San Fernando", lat: -34.60571, lon: -70.98311, precio: 900, tipo: "lateral" },
+  { id: "p_chimbarongo_lat", nombre: "Peaje Chimbarongo", lat: -34.71434, lon: -71.03058, precio: 900, tipo: "lateral" },
+  { id: "p_teno_sur", nombre: "Peaje Teno", lat: -34.79606, lon: -71.04829, precio: 3700, tipo: "peaje" },
+  { id: "p_molina_lat", nombre: "Peaje Molina", lat: -35.09308, lon: -71.3181, precio: 900, tipo: "lateral" },
+  { id: "p_chillan_lin", nombre: "Peaje Chillán - Linares", lat: -35.83706, lon: -71.63185, precio: 800, tipo: "lateral" },
+  { id: "p_chillan_sc", nombre: "Peaje San Carlos", lat: -36.41413, lon: -71.94597, precio: 800, tipo: "lateral" },
+  { id: "p_losangeles_lat", nombre: "Peaje Los Ángeles", lat: -37.48156, lon: -72.40525, precio: 800, tipo: "lateral" },
+  { id: "p_padrelc_lat", nombre: "Peaje Padre Las Casas", lat: -38.77516, lon: -72.58122, precio: 800, tipo: "lateral" },
+  { id: "p_lautaro_lat", nombre: "Peaje Lateral Lautaro", lat: -38.536, lon: -72.441, precio: 900, tipo: "lateral" },
+  { id: "p_temuco_norte_lat", nombre: "Peaje Lateral Temuco Norte", lat: -38.685, lon: -72.545, precio: 900, tipo: "lateral" },
+  { id: "p_osorno", nombre: "Peaje Osorno", lat: -40.5794, lon: -73.09815, precio: 900, tipo: "lateral" },
+  { id: "p_llanquihue", nombre: "Peaje Llanquihue", lat: -41.25465, lon: -73.02331, precio: 900, tipo: "lateral" },
+  { id: "p_lasraices", nombre: "Peaje Túnel Las Raíces", lat: -38.454, lon: -71.498, precio: 400, tipo: "peaje" },
+
+  // --- PÓRTICOS TAG URBANOS ---
   { id: "p_colina_tag", nombre: "TAG Colina (S-Lampa)", lat: -33.27994, lon: -70.73887, precio: 474, tipo: "tag" },
   { id: "p_chicureo_tag", nombre: "TAG Chicureo (S-Lampa)", lat: -33.31709, lon: -70.72221, precio: 387, tipo: "tag" },
   { id: "p_quilicura_tag", nombre: "TAG Quilicura", lat: -33.38222, lon: -70.69557, precio: 495, tipo: "tag" },
@@ -207,6 +225,12 @@ function detectTollsInRoute(geometry) {
   let total = 0;
   const tolls = [];
 
+  // Puntos de inicio y fin para calcular la intención del usuario
+  const startLon = geometry.coordinates[0][0];
+  const startLat = geometry.coordinates[0][1];
+  const endLon = geometry.coordinates[geometry.coordinates.length - 1][0];
+  const endLat = geometry.coordinates[geometry.coordinates.length - 1][1];
+
   // 🔥 DENSIFICAR RUTA
   const densePoints = [];
   for (let i = 0; i < geometry.coordinates.length - 1; i++) {
@@ -235,11 +259,25 @@ function detectTollsInRoute(geometry) {
 
     PEAJES_DB.forEach((p) => {
       if (!detected.has(p.id)) {
-        const dist = getStraightLineDistance(lat, lon, p.lat, p.lon);
-        if (dist <= tolerance) {
-          detected.add(p.id);
-          total += p.precio || 0;
-          tolls.push(p);
+        const distToRoute = getStraightLineDistance(lat, lon, p.lat, p.lon);
+        
+        if (p.tipo === "lateral") {
+          // Generalmente los peajes laterales se pagan al salir de la carretera hacia la ciudad destino.
+          // Por lo tanto, solo lo sumamos si está cerca del destino final, no del origen.
+          const distToEnd = getStraightLineDistance(p.lat, p.lon, endLat, endLon);
+          
+          if (distToEnd <= 15 && distToRoute <= tolerance) {
+            detected.add(p.id);
+            total += p.precio || 0;
+            tolls.push(p);
+          }
+        } else {
+          // Troncales o TAGs
+          if (distToRoute <= tolerance) {
+            detected.add(p.id);
+            total += p.precio || 0;
+            tolls.push(p);
+          }
         }
       }
     });
@@ -258,9 +296,21 @@ function getBestPrice(pObj) {
   return asis > 0 ? asis : auto;
 }
 
-function generateMapHtml(origin, dest, geometry, isRoundTrip) {
+function generateMapHtml(origin, dest, geometry, isRoundTrip, tolls = []) {
   if (!origin || !dest) return "";
   const geomStr = geometry ? JSON.stringify(geometry) : "null";
+  
+  const tollsJs = tolls.map(t => `
+    L.marker([${t.lat}, ${t.lon}], {
+      icon: L.divIcon({
+        className: 'marker-toll',
+        iconSize: [20, 20],
+        html: '<div style="background:#f59e0b;width:20px;height:20px;border:2px solid white;border-radius:50%;box-shadow:0 2px 5px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;"><span style="color:white;font-size:11px;font-weight:900;">$</span></div>'
+      }),
+      zIndexOffset: 500
+    }).addTo(map).bindPopup("<b style='color:#334155'>${t.nombre}</b><br><span style='color:#f59e0b;font-weight:bold'>$${t.precio}</span>");
+  `).join('\n');
+
   return `
     <!DOCTYPE html>
     <html>
@@ -294,14 +344,16 @@ function generateMapHtml(origin, dest, geometry, isRoundTrip) {
                 var polyline = L.polyline([originCoord, destCoord], {color: '#94a3b8', weight: 3, dashArray: '8, 12'}).addTo(map);
                 map.fitBounds(L.latLngBounds([originCoord, destCoord]), {padding: [30, 30]});
             }
+            ${tollsJs}
         </script>
     </body>
     </html>
   `;
 }
 
-function generateStationsMapHtml(stations, selectedId) {
+function generateStationsMapHtml(stations, selectedStation) {
   if (!stations || stations.length === 0) return "";
+  const selectedId = selectedStation?.id;
   const markersJs = stations
     .map((s) => {
       const isSelected = s.id === selectedId;
@@ -324,6 +376,10 @@ function generateStationsMapHtml(stations, selectedId) {
     })
     .join("\n");
 
+  const mapViewJs = selectedStation 
+    ? `map.setView([${selectedStation.lat}, ${selectedStation.lon}], 16);`
+    : `map.fitBounds(group.getBounds(), {padding: [20, 20], maxZoom: 15});`;
+
   return `
     <!DOCTYPE html>
     <html>
@@ -344,7 +400,7 @@ function generateStationsMapHtml(stations, selectedId) {
             L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(map);
             ${markersJs}
             var group = new L.featureGroup([${stations.map((s) => `L.marker([${s.lat}, ${s.lon}])`).join(",")}]);
-            map.fitBounds(group.getBounds(), {padding: [20, 20], maxZoom: 15});
+            ${mapViewJs}
         </script>
     </body>
     </html>
@@ -371,12 +427,19 @@ const RouteCityAutocomplete = ({ placeholder, value, onSelect, comunasData, isOr
   }, [query, isOpen, comunasData, value]);
 
   const handleSelectCity = async (cityName) => {
+    console.log(`[Geocoder] 📡 Buscando coordenadas para ciudad: ${cityName}`);
     setQuery(cityName); setIsOpen(false); setIsLoadingCoords(true);
     try {
       const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&countrycodes=cl&city=${encodeURIComponent(cityName)}&limit=1`);
+      
+      if (!res.ok) {
+         console.error(`[Geocoder] ❌ Error HTTP buscando ciudad: ${res.status}`);
+      }
+
       const data = await res.json();
       const fallbackCity = comunasData.find((c) => c.mainName === cityName);
       if (data && data.length > 0) {
+        console.log(`[Geocoder] ✅ Ciudad encontrada: ${cityName} [${data[0].lat}, ${data[0].lon}]`);
         onSelect({ 
           mainName: cityName, 
           name: cityName, 
@@ -385,8 +448,14 @@ const RouteCityAutocomplete = ({ placeholder, value, onSelect, comunasData, isOr
           regionId: fallbackCity?.regionId || "RM",
           regionName: fallbackCity?.regionName || ""
         });
-      } else { onSelect(fallbackCity); }
-    } catch (err) { onSelect(comunasData.find((c) => c.mainName === cityName)); } 
+      } else { 
+        console.warn(`[Geocoder] ⚠️ No se encontraron coordenadas para: ${cityName}. Usando centro aproximado.`);
+        onSelect(fallbackCity); 
+      }
+    } catch (err) { 
+      console.error(`[Geocoder] ❌ Excepción buscando ciudad (${cityName}):`, err.message);
+      onSelect(comunasData.find((c) => c.mainName === cityName)); 
+    } 
     finally { setIsLoadingCoords(false); }
   };
 
@@ -576,21 +645,21 @@ export default function App() {
 
   useEffect(() => {
     if (calcMode === "carga" && cargaComuna && filteredStationsCarga.length > 0) {
-      const html = generateStationsMapHtml(filteredStationsCarga, currentStation?.id);
+      const html = generateStationsMapHtml(filteredStationsCarga, currentStation);
       const url = URL.createObjectURL(new Blob([html], { type: "text/html" }));
       setStationsMapUrl(url);
       return () => URL.revokeObjectURL(url);
     } else { setStationsMapUrl(""); }
-  }, [cargaComuna, fuelType, currentStation?.id, filteredStationsCarga, calcMode]);
+  }, [cargaComuna, fuelType, currentStation, filteredStationsCarga, calcMode]);
 
   useEffect(() => {
     if (calcMode === "viaje" && originCity && destCity && parseFloat(distanceKm) >= 0) {
-      const html = generateMapHtml(originCity, destCity, routeGeometry, isRoundTrip);
+      const html = generateMapHtml(originCity, destCity, routeGeometry, isRoundTrip, detectedTolls.list);
       const url = URL.createObjectURL(new Blob([html], { type: "text/html" }));
       setMapUrl(url);
       return () => URL.revokeObjectURL(url);
     }
-  }, [originCity, destCity, routeGeometry, distanceKm, calcMode, isRoundTrip]);
+  }, [originCity, destCity, routeGeometry, distanceKm, calcMode, isRoundTrip, detectedTolls.list]);
 
   useEffect(() => {
     const fetchRoute = async () => {
@@ -608,82 +677,81 @@ export default function App() {
       setRouteError(false);
 
       const endpoints = [
-        "/api-osrm/route/v1/driving",
-        "https://routing.openstreetmap.de/routed-car/route/v1/driving",
-        "https://api.openrouteservice.org/v2/directions/driving-car"
+        { url: "https://router.project-osrm.org/route/v1/driving", type: "osrm" },
+        { url: "https://routing.openstreetmap.de/routed-car/route/v1/driving", type: "osrm" },
+        { url: "https://api.openrouteservice.org/v2/directions/driving-car", type: "ors" }
       ];
 
-      let routeFound = false;
+      try {
+        console.log(`[Ruta] 📡 Iniciando carrera de APIs (${endpoints.length} endpoints) para ruta: ${originCity.name} -> ${destCity.name}`);
+        
+        // 🔥 MAGIA AQUÍ: Disparamos todas las APIs al MISMO TIEMPO y nos quedamos con la que responda primero
+        const routeResult = await Promise.any(
+          endpoints.map(async (ep) => {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 segundos max por petición
+            const startTime = Date.now();
+            console.log(`[Ruta] 📡 Intentando con ${ep.type.toUpperCase()}: ${ep.url}...`);
 
-      for (let i = 0; i < endpoints.length; i++) {
-        try {
-          let url = "";
+            try {
+              if (ep.type === "ors") {
+                const API_KEY = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjM5MDY2ZmJlZDhhNzRkYTZiMmVkOWI5MmI2NDcyM2Q1IiwiaCI6Im11cm11cjY0In0=";
+                const res = await fetch(ep.url, {
+                  method: "POST",
+                  headers: { "Authorization": API_KEY, "Content-Type": "application/json" },
+                  signal: controller.signal,
+                  body: JSON.stringify({ coordinates: [[originCity.lon, originCity.lat], [destCity.lon, destCity.lat]] })
+                });
+                
+                const contentType = res.headers.get("content-type");
+                if (contentType && contentType.includes("text/html")) throw new Error("Recibido HTML en vez de JSON");
 
-          if (endpoints[i].includes("openrouteservice")) {
-            const API_KEY = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjM5MDY2ZmJlZDhhNzRkYTZiMmVkOWI5MmI2NDcyM2Q1IiwiaCI6Im11cm11cjY0In0=";
+                if (!res.ok) throw new Error(`HTTP ${res.status} - ${res.statusText}`);
+                const data = await res.json();
+                
+                if (!data.features || data.features.length === 0) {
+                    throw new Error("ORS no devolvió rutas válidas (features is undefined)");
+                }
 
-            const res = await fetch(endpoints[i], {
-              method: "POST",
-              headers: {
-                "Authorization": API_KEY,
-                "Content-Type": "application/json"
-              },
-              body: JSON.stringify({
-                coordinates: [
-                  [originCity.lon, originCity.lat],
-                  [destCity.lon, destCity.lat]
-                ]
-              })
-            });
+                console.log(`[Ruta] ✅ ORS respondió rápido en ${Date.now() - startTime}ms`);
+                return {
+                  geo: { coordinates: data.features[0].geometry.coordinates },
+                  dist: data.features[0].properties.summary.distance / 1000
+                };
+              } else {
+                const res = await fetch(`${ep.url}/${originCity.lon},${originCity.lat};${destCity.lon},${destCity.lat}?overview=simplified&geometries=geojson`, { signal: controller.signal });
+                
+                const contentType = res.headers.get("content-type");
+                if (contentType && contentType.includes("text/html")) throw new Error("Recibido HTML en vez de JSON");
 
-            if (!res.ok) throw new Error("ORS fallo");
+                if (!res.ok) throw new Error(`HTTP ${res.status} - ${res.statusText}`);
+                const data = await res.json();
+                if (!data.routes || data.routes.length === 0) throw new Error("Sin rutas en la respuesta");
 
-            const data = await res.json();
-
-            const coords = data.features[0].geometry.coordinates;
-            const dist = data.features[0].properties.summary.distance / 1000;
-
-            const geo = { coordinates: coords };
-
-            setDistanceKm(dist.toFixed(1));
-            setRouteGeometry(geo);
-
-            const tolls = detectTollsInRoute(geo);
-            setDetectedTolls(tolls);
-
-            routeFound = true;
-            break;
-          } else {
-            url = `${endpoints[i]}/${originCity.lon},${originCity.lat};${destCity.lon},${destCity.lat}?overview=full&geometries=geojson`;
-
-            const res = await fetch(url);
-
-            if (!res.ok) throw new Error("OSRM fallo");
-
-            const data = await res.json();
-
-            if (data.routes && data.routes.length > 0) {
-              const geo = data.routes[0].geometry;
-              const dist = data.routes[0].distance / 1000;
-
-              setDistanceKm(dist.toFixed(1));
-              setRouteGeometry(geo);
-
-              const tolls = detectTollsInRoute(geo);
-              setDetectedTolls(tolls);
-
-              routeFound = true;
-              break;
+                console.log(`[Ruta] ✅ OSRM respondió rápido en ${Date.now() - startTime}ms`);
+                return {
+                  geo: data.routes[0].geometry,
+                  dist: data.routes[0].distance / 1000
+                };
+              }
+            } catch (err) {
+              console.warn(`[Ruta] ❌ Falló ${ep.type.toUpperCase()} (${ep.url}). Razón: ${err.message} | Tiempo invertido: ${Date.now() - startTime}ms`);
+              throw err; // Re-throw para que Promise.any la ignore y siga esperando las demás
+            } finally {
+              clearTimeout(timeoutId);
             }
-          }
-        } catch (err) {
-          console.warn(`❌ Endpoint ${i} falló`);
-        }
-      }
+          })
+        );
 
-      // 🔥 FALLBACK DEFINITIVO (NUNCA FALLA)
-      if (!routeFound) {
-        console.warn("⚠️ Usando fallback directo");
+        // Si alguna responde rápido, se ejecuta esto inmediatamente
+        setDistanceKm(routeResult.dist.toFixed(1));
+        setRouteGeometry(routeResult.geo);
+        const tolls = detectTollsInRoute(routeResult.geo);
+        setDetectedTolls(tolls);
+
+      } catch (err) {
+        // 🔥 FALLBACK DEFINITIVO (Si TODAS fallan o demoran más de 6s)
+        console.error("⚠️ [Ruta] TODOS los servidores públicos de mapas fallaron o fueron abortados. Usando fallback directo en línea recta.", err);
 
         const fallbackDist = calculateHaversineDistance(
           originCity.lat,
@@ -702,7 +770,7 @@ export default function App() {
         setDistanceKm(fallbackDist.toString());
         setRouteGeometry(fakeGeometry);
 
-        const tolls = detectTollsInRoute(fakeGeometry);
+        const tolls = detectTollsInRoute(fakeGeometry, true);
         setDetectedTolls(tolls);
 
         setRouteError(true);
@@ -717,25 +785,46 @@ export default function App() {
     const fetchPrecios = async () => {
       setIsLoading(true);
       try {
-        const baseOrigin = window.location.origin === "null" ? "http://localhost" : window.location.origin;
-        const loginUrl = new URL("/api-cne/api/login", baseOrigin).toString();
-        const estacionesUrl = new URL(RUTA_ESTACIONES, baseOrigin).toString();
+        console.log("[CNE] 📡 Iniciando conexión con API CNE...");
+        
+        // 🔥 Corrección CNE: Evitamos el proxy local en entornos que no lo soportan (como Canvas)
+        const isLocalhost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+        const baseUrl = isLocalhost ? "/api-cne" : "https://api.cne.cl";
+        
+        const loginUrl = `${baseUrl}/api/login`;
+        const estacionesUrl = `${baseUrl}/api/v4/estaciones`;
 
         const loginRes = await fetch(loginUrl, {
           method: "POST",
           headers: { "Content-Type": "application/x-www-form-urlencoded" },
           body: "email=nicolas0645@gmail.com&password=12qwaszxL",
         });
+
+        if (!loginRes.ok) {
+           throw new Error(`Error en Login. Status: ${loginRes.status} ${loginRes.statusText}`);
+        }
+
+        const contentType = loginRes.headers.get("content-type");
+        if (contentType && contentType.includes("text/html")) {
+           throw new Error("El servidor devolvió HTML. Proxy ausente en este entorno.");
+        }
+
         const loginData = await loginRes.json();
         const token = loginData.data?.token || loginData.token;
 
         if (token) {
+          console.log("[CNE] 🔑 Token de seguridad obtenido correctamente. Descargando estaciones...");
           setAuthStatus("success");
+          
           const stRes = await fetch(estacionesUrl, {
             headers: { Token: token, Authorization: `Bearer ${token}`, Accept: "application/json" },
           });
 
-          if (!stRes.ok) throw new Error("Error HTTP al obtener estaciones");
+          if (!stRes.ok) {
+            console.error(`[CNE] ❌ Error descargando datos de estaciones. Status: ${stRes.status}`);
+            throw new Error("Error HTTP al obtener estaciones");
+          }
+
           const stData = await stRes.json();
           const raw = Array.isArray(stData) ? stData : stData.data || stData.estaciones || [];
 
@@ -817,12 +906,131 @@ export default function App() {
               }
             }
           });
-          setCneStations(cleanList.filter((s) => s.lat !== 0 && s.lon !== 0 && s.comuna !== "Desconocida"));
+          
+          const filteredList = cleanList.filter((s) => s.lat !== 0 && s.lon !== 0 && s.comuna !== "Desconocida");
+          console.log(`[CNE] ✅ Datos procesados y purgados correctamente. Total estaciones válidas cargadas en memoria: ${filteredList.length}`);
+          setCneStations(filteredList);
         } else {
+          console.error("[CNE] ❌ Falló la autenticación. No se recibió token en la respuesta de Login:", loginData);
           setAuthStatus("error");
         }
       } catch (e) {
-        setAuthStatus("error");
+        console.warn("[CNE] ⚠️ Aviso: No se pudo conectar a la API (probablemente por bloqueo CORS del navegador). Activando Modo Demo.");
+        setAuthStatus("demo");
+        
+        // Datos falsos (MOCK) para que la app no muera en entornos sin proxy (como Canvas)
+        const MOCK_STATIONS = [
+          {
+            id: "m1",
+            comuna: "Santiago",
+            distribuidor: "Copec",
+            direccion: "Av. Providencia 123",
+            lat: -33.4489,
+            lon: -70.6693,
+            precios: {
+              93: { asistido: 1320, autoservicio: 1300 },
+              95: { asistido: 1360 },
+              97: { asistido: 1400 },
+              diesel: { asistido: 1050 },
+              parafina: { asistido: 950 },
+            },
+            actualizacion: "Hoy",
+            regionId: "RM",
+            regionName: "Región Metropolitana",
+            timestampAct: Date.now(),
+          },
+          {
+            id: "m2",
+            comuna: "Santiago",
+            distribuidor: "Shell",
+            direccion: "Alameda 456",
+            lat: -33.44,
+            lon: -70.65,
+            precios: {
+              93: { asistido: 1310 },
+              95: { asistido: 1350 },
+              97: { asistido: 1390 },
+              diesel: { asistido: 1040 },
+              parafina: { asistido: 940 },
+            },
+            actualizacion: "Hoy",
+            regionId: "RM",
+            regionName: "Región Metropolitana",
+            timestampAct: Date.now(),
+          },
+          {
+            id: "m3",
+            comuna: "Viña del Mar",
+            distribuidor: "Petrobras",
+            direccion: "Av. Libertad 456",
+            lat: -33.0153,
+            lon: -71.5505,
+            precios: {
+              93: { asistido: 1310 },
+              95: { asistido: 1350 },
+              97: { asistido: 1390 },
+              diesel: { asistido: 1040 },
+              parafina: { asistido: 940 },
+            },
+            actualizacion: "Hoy",
+            regionId: "V",
+            regionName: "Valparaíso",
+            timestampAct: Date.now(),
+          },
+          {
+            id: "m4",
+            comuna: "Concepción",
+            distribuidor: "Copec",
+            direccion: "Av. Los Carrera 789",
+            lat: -36.8201,
+            lon: -73.0444,
+            precios: {
+              93: { asistido: 1330, autoservicio: 1315 },
+              95: { asistido: 1370 },
+              diesel: { asistido: 1060 },
+            },
+            actualizacion: "Hoy",
+            regionId: "VIII",
+            regionName: "Biobío",
+            timestampAct: Date.now(),
+          },
+          {
+            id: "m5",
+            comuna: "Temuco",
+            distribuidor: "Shell",
+            direccion: "Caupolicán 1010",
+            lat: -38.7359,
+            lon: -72.5904,
+            precios: {
+              93: { asistido: 1340 },
+              95: { asistido: 1380 },
+              diesel: { asistido: 1070 },
+            },
+            actualizacion: "Hoy",
+            regionId: "IX",
+            regionName: "Araucanía",
+            timestampAct: Date.now(),
+          },
+          {
+            id: "m6",
+            comuna: "Antofagasta",
+            distribuidor: "Petrobras",
+            direccion: "Av. Balmaceda 2020",
+            lat: -23.6500,
+            lon: -70.4000,
+            precios: {
+              93: { asistido: 1350 },
+              95: { asistido: 1390 },
+              diesel: { asistido: 1080 },
+            },
+            actualizacion: "Hoy",
+            regionId: "II",
+            regionName: "Antofagasta",
+            timestampAct: Date.now(),
+          }
+        ];
+        setCneStations(MOCK_STATIONS);
+        
       } finally {
         setIsLoading(false);
       }
@@ -1051,6 +1259,7 @@ export default function App() {
         
         {calcMode === "viaje" && resultValue > 0 && (
           <div className="flex flex-col items-end gap-1.5 pb-1">
+            <span className="text-[11px] font-bold text-slate-400 flex items-center bg-slate-50 px-2 py-0.5 rounded-md"><DollarSign className="w-3 h-3 mr-0.5 text-slate-400" /> Ref: {formatCLP(pricePerLiter)}/L</span>
             <span className="text-[11px] font-bold text-slate-400 flex items-center bg-slate-50 px-2 py-0.5 rounded-md"><Droplets className="w-3 h-3 mr-1 text-slate-400" /> {formatCLP(bencinaTotal)}</span>
             <span className="text-[11px] font-bold text-slate-400 flex items-center bg-slate-50 px-2 py-0.5 rounded-md"><Ticket className="w-3 h-3 mr-1 text-slate-400" /> {includeTolls ? formatCLP(peajeTotal) : 'Omitidos'}</span>
           </div>
@@ -1098,7 +1307,8 @@ export default function App() {
               {calcMode === 'viaje' ? 'Calculadora de viaje' : 'Buscar Combustible'}
             </h1>
             <div className="flex items-center gap-3">
-               {authStatus === 'error' && <AlertCircle className="w-5 h-5 text-red-500" />}
+               {authStatus === 'error' && <AlertCircle className="w-5 h-5 text-red-500" title="Error en API" />}
+               {authStatus === 'demo' && <Info className="w-5 h-5 text-amber-500" title="Modo Demo" />}
                <button onClick={() => setShowSettingsModal(true)} className="p-2.5 bg-white rounded-full shadow-sm text-slate-600 hover:bg-slate-50 transition-colors">
                   <Settings className="w-5 h-5" />
                </button>

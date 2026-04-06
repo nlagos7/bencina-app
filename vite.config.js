@@ -17,6 +17,16 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api-osrm/, ""),
       },
+      "/api-openstreet": {
+        target: "https://routing.openstreetmap.de",
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api-openstreet/, ""),
+      },
+      "/api-openroute": {
+        target: "https://api.openrouteservice.org",
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api-openroute/, ""),
+      },
     },
   },
 });
