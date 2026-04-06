@@ -463,7 +463,7 @@ const ComunaAutocomplete = ({ placeholder, value, onSelect, comunas }) => {
         <Search className="absolute right-4 top-4 w-5 h-5 text-slate-300 pointer-events-none" />
       )}
       {isOpen && results.length > 0 && (
-        <ul className="absolute z-50 w-full mt-2 bg-white border border-slate-100 rounded-2xl shadow-xl max-h-64 overflow-y-auto">
+        <ul className="absolute z-50 w-full mt-2 bg-white border rounded-xl shadow-xl max-h-64 overflow-y-auto">
           {results.map((c) => (
             <li key={c.comuna} onMouseDown={(e) => { e.preventDefault(); onSelect(c.comuna); setIsOpen(false); }} className="p-3 cursor-pointer flex justify-between items-center hover:bg-slate-50 border-b last:border-0 border-slate-50 text-sm font-semibold">
               <div className="flex flex-col">
@@ -649,9 +649,9 @@ const fetchRoute = async () => {
     }
   }
 
-  // 🔥 FALLBACK DEFINITIVO (NUNCA FALLA)
+  //FALLBACK DEFINITIVO (NUNCA FALLA)
   if (!routeFound) {
-    console.warn("⚠️ Usando fallback directo");
+    console.warn("Usando fallback directo");
 
     const fallbackDist = calculateHaversineDistance(
       originCity.lat,
@@ -817,7 +817,7 @@ const fetchRoute = async () => {
   }, [cneStations]);
 
   const availableComunas = React.useMemo(() => {
-    const map = new globalThis.Map();
+    const map = new Map();
     cneStations.forEach((s) => {
       if (s.comuna && !map.has(s.comuna)) {
         map.set(s.comuna, s.regionName);
@@ -874,6 +874,176 @@ const fetchRoute = async () => {
   const currentStationsPage = filteredStationsCarga.slice(indexOfFirstItem, indexOfLastItem);
   const totalPages = Math.ceil(filteredStationsCarga.length / ITEMS_PER_PAGE);
 
+  // --- COMPONENTES PARA PANELES SEPARADOS EN DESKTOP ---
+  
+  const CargaMainContent = (
+    cargaComuna && filteredStationsCarga.length > 0 && (
+      <div className="space-y-4 animate-in fade-in duration-500 mx-6 lg:mx-0 flex flex-col h-full pb-6 lg:pb-0">
+        <div className="flex items-center justify-between ml-2 shrink-0">
+           <h3 className="text-sm font-extrabold text-slate-800 uppercase tracking-wide">Estaciones</h3>
+           <span className="text-[10px] font-bold text-slate-500 bg-slate-200 px-2 py-0.5 rounded-full">{filteredStationsCarga.length} resultados</span>
+        </div>
+
+        <div className="w-full h-48 lg:flex-1 lg:min-h-[300px] shrink-0 rounded-[2rem] overflow-hidden shadow-sm border-[6px] border-white relative bg-slate-200">
+          {stationsMapUrl ? (
+            <iframe src={stationsMapUrl} title="Mapa Estaciones" width="100%" height="100%" style={{ border: 0 }} sandbox="allow-scripts allow-same-origin" />
+          ) : (
+            <div className="absolute inset-0 flex items-center justify-center text-slate-400"><Loader2 className="w-6 h-6 animate-spin" /></div>
+          )}
+          <div className="absolute top-3 left-3 bg-white/90 backdrop-blur-sm text-[10px] font-bold px-3 py-1.5 rounded-xl shadow-sm text-slate-700">Toca un pin para verla</div>
+        </div>
+
+        <div className="flex flex-col gap-3 flex-1 lg:overflow-y-auto no-scrollbar lg:pr-2">
+          {currentStationsPage.map((station, idx) => {
+            const isSelected = currentStation?.id === station.id;
+            const isCheapest = currentPage === 1 && idx === 0 && !station.isOutdated;
+            const pObj = station.precios[fuelType];
+            const bestPrice = getBestPrice(pObj);
+            const hasAuto = pObj?.autoservicio > 0;
+            const hasAsis = pObj?.asistido > 0;
+
+            return (
+              <div key={station.id} onClick={() => setCurrentStation(station)} className={`w-full shrink-0 flex items-center justify-between p-4 rounded-[1.5rem] cursor-pointer transition-all duration-300 ${isSelected ? "bg-slate-900 shadow-xl scale-[1.02]" : "bg-white shadow-[0_4px_20px_rgb(0,0,0,0.03)] hover:shadow-md"}`}>
+                <div className="flex flex-col flex-1 overflow-hidden pr-2">
+                  <div className="flex items-center space-x-2 mb-1">
+                    {station.logo ? (<img src={station.logo} alt={station.distribuidor} className="h-6 w-6 object-contain rounded-full bg-white p-0.5" onError={(e) => { e.target.style.display = "none"; e.target.nextSibling.style.display = "block"; }} />) : null}
+                    <Fuel className={`w-5 h-5 ${isSelected ? 'text-slate-300' : 'text-slate-400'}`} style={{ display: station.logo ? "none" : "block" }} />
+                    <span className={`font-black text-sm truncate ${isSelected ? 'text-white' : 'text-slate-800'}`}>{station.distribuidor}</span>
+                    {isCheapest && <span className="text-[10px] font-extrabold text-emerald-800 bg-emerald-400/20 rounded-full px-1.5 py-0.5 ml-1 shrink-0 flex items-center"><TrendingUp className="w-2.5 h-2.5 mr-0.5" /> Top 1</span>}
+                  </div>
+                  <span className={`text-xs truncate font-medium ${isSelected ? 'text-slate-400' : 'text-slate-500'}`} title={station.direccion}>{station.direccion}</span>
+                  <div className="flex items-center mt-2">
+                    <span className={`text-[10px] flex items-center font-bold ${station.isOutdated ? "text-red-400" : isSelected ? "text-slate-400" : "text-slate-400"}`}>
+                      {station.isOutdated ? <AlertCircle className="w-3 h-3 mr-1" /> : <Clock className="w-3 h-3 mr-1" />}
+                      {station.isOutdated ? "Desactualizado" : station.actualizacion ? station.actualizacion.split(" ")[0] : "--"}
+                    </span>
+                  </div>
+                </div>
+                <div className="flex flex-col items-end justify-center shrink-0 pl-3 border-l border-white/10 min-w-[80px]">
+                  <span className={`text-2xl font-black tracking-tight ${isSelected ? 'text-white' : 'text-slate-900'}`}>{formatCLP(bestPrice)}</span>
+                  {hasAuto && hasAsis && pObj.autoservicio !== pObj.asistido ? (
+                    <div className={`text-[9px] font-bold mt-1 flex flex-col items-end leading-tight ${isSelected ? 'text-slate-400' : 'text-slate-400'}`}>
+                      <span className={isSelected ? 'text-blue-300' : 'text-blue-500'}>Auto: {formatCLP(pObj.autoservicio)}</span>
+                      <span>Asis: {formatCLP(pObj.asistido)}</span>
+                    </div>
+                  ) : hasAuto ? (
+                    <span className={`text-[9px] font-bold uppercase mt-1 ${isSelected ? 'text-blue-300' : 'text-blue-500'}`}>Autoservicio</span>
+                  ) : hasAsis ? (
+                    <span className={`text-[9px] font-bold uppercase mt-1 ${isSelected ? 'text-slate-400' : 'text-slate-400'}`}>Asistido</span>
+                  ) : null}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        
+        {totalPages > 1 && (
+          <div className="flex justify-between items-center mt-4 px-2 shrink-0">
+            <button onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} disabled={currentPage === 1} className="w-10 h-10 flex items-center justify-center bg-white text-slate-800 rounded-full shadow-sm disabled:opacity-50 transition-active active:scale-95"><ChevronLeft className="w-5 h-5" /></button>
+            <span className="text-xs font-bold text-slate-500">Página {currentPage} de {totalPages}</span>
+            <button onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="w-10 h-10 flex items-center justify-center bg-white text-slate-800 rounded-full shadow-sm disabled:opacity-50 transition-active active:scale-95"><ChevronRight className="w-5 h-5" /></button>
+          </div>
+        )}
+      </div>
+    )
+  );
+
+  const ViajeMainContent = (
+    originCity && destCity && (
+      <div className="mx-6 lg:mx-0 animate-in fade-in slide-in-from-bottom-4 duration-500 flex flex-col h-full pb-6 lg:pb-0">
+        <div className="flex items-center justify-between mb-3 px-2 shrink-0">
+          <span className="text-sm font-extrabold text-slate-800 uppercase tracking-wide">Ruta calculada</span>
+          {isCalculatingRoute ? (
+            <div className="flex items-center text-blue-600 text-xs font-bold bg-blue-50 px-2 py-1 rounded-lg">
+              <Loader2 className="w-3 h-3 animate-spin mr-1.5" /> Procesando...
+            </div>
+          ) : (
+            <span className="text-xs font-bold text-slate-600 bg-slate-200 px-2.5 py-1 rounded-lg">
+              {displayDistanceKm} km
+            </span>
+          )}
+        </div>
+        
+        {routeError && (
+          <div className="flex items-center text-[10px] text-amber-700 bg-amber-50 p-2.5 rounded-xl border border-amber-200 mb-3 shrink-0">
+            <AlertCircle className="w-4 h-4 mr-2 shrink-0" />
+            Servidores GPS públicos saturados. Mostrando estimación de ruta en línea recta.
+          </div>
+        )}
+
+        <div className="relative h-48 lg:flex-1 lg:min-h-[400px] shrink-0 rounded-[2rem] overflow-hidden shadow-sm border-[6px] border-white bg-slate-200">
+          {isCalculatingRoute ? (
+            <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-400 bg-slate-100">
+              <MapIcon className="w-8 h-8 mb-2 opacity-50" />
+              <span className="text-xs font-semibold">Trazando ruta...</span>
+            </div>
+          ) : (
+            <>
+              <iframe key={`map-${originCity.lat}-${destCity.lat}-${isRoundTrip}`} src={mapUrl} title="Mapa de la ruta" width="100%" height="100%" style={{ border: 0 }} sandbox="allow-scripts allow-same-origin" />
+              <div className="absolute bottom-3 left-1/2 -translate-x-1/2 bg-white/90 backdrop-blur-md px-4 py-2.5 rounded-full shadow-lg flex items-center gap-3 z-20 cursor-pointer" onClick={() => setIsRoundTrip(!isRoundTrip)}>
+                 <span className="text-[13px] font-bold text-slate-800 whitespace-nowrap select-none">Ida y vuelta</span>
+                 <button className={`w-11 h-6 rounded-full relative transition-colors ${isRoundTrip ? 'bg-blue-600' : 'bg-slate-300'}`}>
+                    <div className={`w-4 h-4 rounded-full bg-white absolute top-1 transition-transform ${isRoundTrip ? 'translate-x-6' : 'translate-x-1'}`} />
+                 </button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    )
+  );
+
+  const FooterContent = (
+    <>
+      {calcMode === "carga" && currentStation && (
+        <div className="bg-slate-50 p-3 rounded-2xl mb-4 border border-slate-100 flex gap-2">
+          <div className="relative flex-[2]">
+            <input type="number" min="0" step={chargeMode === "liters" ? "0.1" : "1000"} value={inputValue} onChange={(e) => setInputValue(e.target.value)} className="w-full p-3 pl-4 pr-2 text-lg border border-slate-200 rounded-xl focus:ring-2 focus:ring-slate-900 outline-none font-black text-slate-900 bg-white" placeholder="0" />
+          </div>
+          <select value={chargeMode} onChange={(e) => { setChargeMode(e.target.value); setInputValue(""); }} className="flex-1 p-3 text-sm font-bold bg-slate-900 text-white rounded-xl outline-none cursor-pointer appearance-none text-center" >
+            <option value="money">Pesos ($)</option>
+            <option value="liters">Litros (L)</option>
+          </select>
+        </div>
+      )}
+
+      <div className="flex justify-between items-end mb-5">
+        <div className="flex flex-col">
+          <span className="text-[13px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+            {calcMode === "carga" ? chargeMode === "money" ? "Recibirás aprox." : "Costo estimado" : "Costo Total Viaje"}
+          </span>
+          <span className="text-[2.5rem] font-black text-slate-900 tracking-tight leading-none">
+            {calcMode === "carga" && chargeMode === "money" ? `${resultValue.toFixed(1)} Lts` : formatCLP(resultValue)}
+          </span>
+        </div>
+        
+        {calcMode === "viaje" && resultValue > 0 && (
+          <div className="flex flex-col items-end gap-1.5 pb-1">
+            <span className="text-[11px] font-bold text-slate-400 flex items-center bg-slate-50 px-2 py-0.5 rounded-md"><Droplets className="w-3 h-3 mr-1 text-slate-400" /> {formatCLP(bencinaTotal)}</span>
+            <span className="text-[11px] font-bold text-slate-400 flex items-center bg-slate-50 px-2 py-0.5 rounded-md"><Ticket className="w-3 h-3 mr-1 text-slate-400" /> {formatCLP(peajeTotal)}</span>
+          </div>
+        )}
+      </div>
+
+      {calcMode === "viaje" && (
+        <button 
+          onClick={() => { if(detectedTolls.list.length > 0) setShowTollsModal(true) }} 
+          disabled={detectedTolls.list.length === 0}
+          className="w-full bg-slate-900 text-white rounded-[1.25rem] py-4 font-extrabold text-[15px] flex items-center justify-center gap-2 shadow-xl shadow-slate-900/20 active:scale-[0.98] transition-all disabled:opacity-50 disabled:active:scale-100"
+        >
+          <Ticket className="w-5 h-5" />
+          {detectedTolls.list.length > 0 ? 'Ver desglose de peajes' : 'Sin peajes en la ruta'}
+        </button>
+      )}
+
+      {calcMode === "carga" && !currentStation && (
+         <div className="w-full bg-slate-100 text-slate-400 rounded-[1.25rem] py-4 font-extrabold text-[15px] flex items-center justify-center gap-2 text-center">
+            Selecciona una estación para simular
+         </div>
+      )}
+    </>
+  );
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4 font-sans">
@@ -884,302 +1054,185 @@ const fetchRoute = async () => {
   }
 
   return (
-    <div className="bg-slate-100 flex justify-center font-sans text-slate-800 min-h-screen sm:p-6">
-      <div className="w-full max-w-md bg-[#f8fafc] sm:rounded-[3rem] sm:shadow-2xl flex flex-col h-[100dvh] sm:h-[850px] overflow-hidden relative">
+    <div className="bg-slate-100 flex items-center justify-center font-sans text-slate-800 min-h-screen sm:p-6 lg:p-8">
+      <div className="w-full max-w-md lg:max-w-5xl bg-[#f8fafc] sm:rounded-[3rem] lg:rounded-[2rem] sm:shadow-2xl flex flex-col lg:flex-row h-[100dvh] sm:h-[850px] lg:h-[80vh] lg:min-h-[700px] overflow-hidden relative">
         
-        {/* HEADER LIMPIO TIPO APP */}
-        <div className="flex items-center justify-between px-6 pt-8 pb-4 shrink-0 bg-[#f8fafc]">
-          <h1 className="text-[22px] font-black tracking-tight text-slate-900">
-            {calcMode === 'viaje' ? 'Calculadora de viaje' : 'Buscar Combustible'}
-          </h1>
-          <div className="flex items-center gap-3">
-             {authStatus === 'error' && <AlertCircle className="w-5 h-5 text-red-500" />}
-             <button className="p-2.5 bg-white rounded-full shadow-sm text-slate-600 hover:bg-slate-50 transition-colors">
-                <Settings className="w-5 h-5" />
-             </button>
-          </div>
-        </div>
-
-        {/* SWITCHER DE MODOS */}
-        <div className="mx-6 p-1.5 bg-slate-200/60 rounded-[1.25rem] flex shrink-0 mb-2">
-          <button
-            onClick={() => { setCalcMode("viaje"); setInputValue(""); if (fuelType === "parafina") setFuelType("93"); }}
-            className={`flex-1 flex items-center justify-center gap-2 py-3 text-sm font-bold rounded-xl transition-all duration-300 ${calcMode === "viaje" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
-          >
-            <Route className="w-4 h-4" /> Viaje
-          </button>
-          <button
-            onClick={() => { setCalcMode("carga"); setInputValue(""); }}
-            className={`flex-1 flex items-center justify-center gap-2 py-3 text-sm font-bold rounded-xl transition-all duration-300 ${calcMode === "carga" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
-          >
-            <Fuel className="w-4 h-4" /> Carga
-          </button>
-        </div>
-
-        {/* CONTENIDO SCROLLABLE */}
-        <div className="flex-1 overflow-y-auto pb-40 no-scrollbar">
-          {calcMode === "viaje" ? (
-            <div className="space-y-6 pb-6">
-              
-              {/* TARJETA ORIGEN/DESTINO */}
-              <div className="mx-6 mt-4 bg-white rounded-[2rem] p-4 shadow-[0_8px_30px_rgb(0,0,0,0.04)] relative">
-                <div className="absolute right-5 top-1/2 -translate-y-1/2 z-10">
-                  <button onClick={handleSwapCities} className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center text-slate-500 hover:bg-slate-200 transition-colors active:scale-95">
-                    <ArrowUpDown className="w-4 h-4" />
-                  </button>
-                </div>
-
-                <div className="flex relative pr-12">
-                   <div className="w-10 flex flex-col items-center justify-center pt-4 pb-4 relative">
-                      <div className="w-[14px] h-[14px] rounded-full border-[3px] border-blue-500 bg-white z-10 relative"></div>
-                      <div className="absolute top-7 bottom-7 w-[2px] border-l-2 border-dashed border-slate-200 left-1/2 -translate-x-1/2"></div>
-                      <MapPin className="w-[18px] h-[18px] text-red-500 z-10 relative fill-red-100 mt-auto" />
-                   </div>
-                   <div className="flex-1 flex flex-col pl-2">
-                      <div className="relative border-b border-slate-100 pb-2">
-                         <RouteCityAutocomplete placeholder="¿Desde dónde viajas?" value={originCity} onSelect={setOriginCity} comunasData={comunasDataForRouting} />
-                      </div>
-                      <div className="relative pt-2">
-                         <RouteCityAutocomplete placeholder="¿Hacia dónde vas?" value={destCity} onSelect={setDestCity} comunasData={comunasDataForRouting} />
-                      </div>
-                   </div>
-                </div>
-              </div>
-
-              {/* TARJETA VEHÍCULO / AJUSTES */}
-              <div className="mx-6 space-y-3">
-                 <h3 className="text-sm font-extrabold text-slate-800 ml-2 uppercase tracking-wide">Vehículo</h3>
-                 <div className="bg-white rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] overflow-hidden">
-                    {/* Rendimiento */}
-                    <div className="flex items-center justify-between p-4 border-b border-slate-50">
-                       <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-600"><Car className="w-5 h-5"/></div>
-                          <span className="font-bold text-slate-700">Rendimiento</span>
-                       </div>
-                       <div className="flex items-center gap-1 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200">
-                          <input type="number" step="0.1" min="1" className="w-10 bg-transparent outline-none font-black text-right text-slate-900" value={efficiencyKml} onChange={(e)=>setEfficiencyKml(e.target.value)} />
-                          <span className="text-sm font-semibold text-slate-500">Km/L</span>
-                       </div>
-                    </div>
-                    {/* Combustible */}
-                    <div className="flex items-center justify-between p-4 border-b border-slate-50">
-                       <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-full bg-orange-50 flex items-center justify-center text-orange-500"><Fuel className="w-5 h-5"/></div>
-                          <span className="font-bold text-slate-700">Combustible</span>
-                       </div>
-                       <div className="relative">
-                         <select className="bg-slate-50 pl-3 pr-8 py-2 rounded-xl border border-slate-200 font-black text-slate-900 outline-none cursor-pointer appearance-none" value={fuelType} onChange={(e)=>setFuelType(e.target.value)}>
-                            <option value="93">93 oct</option>
-                            <option value="95">95 oct</option>
-                            <option value="97">97 oct</option>
-                            <option value="diesel">Diesel</option>
-                         </select>
-                         <ChevronDown className="absolute right-2.5 top-2.5 w-4 h-4 text-slate-400 pointer-events-none" />
-                       </div>
-                    </div>
-                    {/* Peajes y TAG */}
-                    <div className="flex items-center justify-between p-4">
-                       <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-600"><Ticket className="w-5 h-5"/></div>
-                          <span className="font-bold text-slate-700">Peajes y TAG</span>
-                       </div>
-                       <div className="flex items-center gap-2">
-                         <span className="text-xs font-bold text-emerald-600">Automático</span>
-                         <div className="w-10 h-6 bg-emerald-500 rounded-full relative flex items-center px-1">
-                           <div className="w-4 h-4 bg-white rounded-full absolute right-1"></div>
-                         </div>
-                       </div>
-                    </div>
-                 </div>
-              </div>
-
-              {/* MAPA Y DISTANCIA */}
-              {originCity && destCity && (
-                <div className="mx-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                  <div className="flex items-center justify-between mb-3 px-2">
-                    <span className="text-sm font-extrabold text-slate-800 uppercase tracking-wide">Ruta calculada</span>
-                    {isCalculatingRoute ? (
-                      <div className="flex items-center text-blue-600 text-xs font-bold bg-blue-50 px-2 py-1 rounded-lg">
-                        <Loader2 className="w-3 h-3 animate-spin mr-1.5" /> Procesando...
-                      </div>
-                    ) : (
-                      <span className="text-xs font-bold text-slate-600 bg-slate-200 px-2.5 py-1 rounded-lg">
-                        {displayDistanceKm} km
-                      </span>
-                    )}
-                  </div>
-                  <div className="relative h-48 rounded-[2rem] overflow-hidden shadow-sm border-[6px] border-white bg-slate-200">
-                    {isCalculatingRoute ? (
-                      <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-400 bg-slate-100">
-                        <MapIcon className="w-8 h-8 mb-2 opacity-50" />
-                        <span className="text-xs font-semibold">Trazando ruta...</span>
-                      </div>
-                    ) : (
-                      <>
-                        <iframe key={`map-${originCity.lat}-${destCity.lat}-${isRoundTrip}`} src={mapUrl} title="Mapa de la ruta" width="100%" height="100%" style={{ border: 0 }} sandbox="allow-scripts allow-same-origin" />
-                        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 bg-white/90 backdrop-blur-md px-4 py-2.5 rounded-full shadow-lg flex items-center gap-3 z-20 cursor-pointer" onClick={() => setIsRoundTrip(!isRoundTrip)}>
-                           <span className="text-[13px] font-bold text-slate-800 whitespace-nowrap select-none">Ida y vuelta</span>
-                           <button className={`w-11 h-6 rounded-full relative transition-colors ${isRoundTrip ? 'bg-blue-600' : 'bg-slate-300'}`}>
-                              <div className={`w-4 h-4 rounded-full bg-white absolute top-1 transition-transform ${isRoundTrip ? 'translate-x-6' : 'translate-x-1'}`} />
-                           </button>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                </div>
-              )}
+        {/* PANEL IZQUIERDO (CONTROLES) */}
+        <div className="flex flex-col w-full lg:w-[420px] h-full relative z-20 bg-[#f8fafc] lg:border-r border-slate-200 shrink-0">
+           
+          {/* HEADER LIMPIO TIPO APP */}
+          <div className="flex items-center justify-between px-6 pt-8 pb-4 shrink-0 bg-[#f8fafc]">
+            <h1 className="text-[22px] font-black tracking-tight text-slate-900">
+              {calcMode === 'viaje' ? 'Calculadora de viaje' : 'Buscar Combustible'}
+            </h1>
+            <div className="flex items-center gap-3">
+               {authStatus === 'error' && <AlertCircle className="w-5 h-5 text-red-500" />}
+               <button className="p-2.5 bg-white rounded-full shadow-sm text-slate-600 hover:bg-slate-50 transition-colors">
+                  <Settings className="w-5 h-5" />
+               </button>
             </div>
-          ) : (
-            <div className="space-y-6 pb-6">
-              {/* SECCIÓN CARGA (Adaptada al nuevo diseño) */}
-              <div className="mx-6 mt-4 space-y-3">
-                <h3 className="text-sm font-extrabold text-slate-800 ml-2 uppercase tracking-wide">Tipo de combustible</h3>
-                <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
-                  {fuelOptionsCarga.map((type) => {
-                    const isSelected = fuelType === type;
-                    return (
-                      <button key={type} onClick={() => setFuelType(type)} className={`px-5 py-3 rounded-2xl text-sm font-bold transition-all whitespace-nowrap ${isSelected ? "bg-slate-900 text-white shadow-md" : "bg-white text-slate-600 shadow-[0_4px_20px_rgb(0,0,0,0.03)] hover:bg-slate-50"}`}>
-                        {type === "diesel" ? "Diesel" : type === "parafina" ? "Parafina" : type + " Octanos"}
-                      </button>
-                    )
-                  })}
-                </div>
-              </div>
+          </div>
 
-              <div className="mx-6 space-y-3">
-                <h3 className="text-sm font-extrabold text-slate-800 ml-2 uppercase tracking-wide">Ubicación</h3>
-                <div className="bg-white rounded-[2rem] p-2 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
-                  <ComunaAutocomplete placeholder="¿En qué comuna buscas?" value={cargaComuna} onSelect={(c) => { setCargaComuna(c); setCurrentStation(null); }} comunas={availableComunas} />
-                </div>
-              </div>
+          {/* SWITCHER DE MODOS */}
+          <div className="mx-6 p-1.5 bg-slate-200/60 rounded-[1.25rem] flex shrink-0 mb-2">
+            <button
+              onClick={() => { setCalcMode("viaje"); setInputValue(""); if (fuelType === "parafina") setFuelType("93"); }}
+              className={`flex-1 flex items-center justify-center gap-2 py-3 text-sm font-bold rounded-xl transition-all duration-300 ${calcMode === "viaje" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+            >
+              <Route className="w-4 h-4" /> Viaje
+            </button>
+            <button
+              onClick={() => { setCalcMode("carga"); setInputValue(""); }}
+              className={`flex-1 flex items-center justify-center gap-2 py-3 text-sm font-bold rounded-xl transition-all duration-300 ${calcMode === "carga" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+            >
+              <Fuel className="w-4 h-4" /> Carga
+            </button>
+          </div>
 
-              {cargaComuna && filteredStationsCarga.length > 0 && (
-                <div className="space-y-4 animate-in fade-in duration-500 mx-6">
-                  <div className="flex items-center justify-between ml-2">
-                     <h3 className="text-sm font-extrabold text-slate-800 uppercase tracking-wide">Estaciones</h3>
-                     <span className="text-[10px] font-bold text-slate-500 bg-slate-200 px-2 py-0.5 rounded-full">{filteredStationsCarga.length} resultados</span>
+          {/* CONTROLES SCROLLABLES */}
+          <div className="flex-1 overflow-y-auto pb-40 lg:pb-0 no-scrollbar">
+            {calcMode === "viaje" ? (
+              <div className="space-y-6 pb-6 lg:pb-6">
+                
+                {/* TARJETA ORIGEN/DESTINO */}
+                <div className="mx-6 mt-4 bg-white rounded-[2rem] p-4 shadow-[0_8px_30px_rgb(0,0,0,0.04)] relative">
+                  <div className="absolute right-5 top-1/2 -translate-y-1/2 z-10">
+                    <button onClick={handleSwapCities} className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center text-slate-500 hover:bg-slate-200 transition-colors active:scale-95">
+                      <ArrowUpDown className="w-4 h-4" />
+                    </button>
                   </div>
 
-                  <div className="w-full h-48 rounded-[2rem] overflow-hidden shadow-sm border-[6px] border-white relative bg-slate-200">
-                    {stationsMapUrl ? (
-                      <iframe src={stationsMapUrl} title="Mapa Estaciones" width="100%" height="100%" style={{ border: 0 }} sandbox="allow-scripts allow-same-origin" />
-                    ) : (
-                      <div className="absolute inset-0 flex items-center justify-center text-slate-400"><Loader2 className="w-6 h-6 animate-spin" /></div>
-                    )}
-                    <div className="absolute top-3 left-3 bg-white/90 backdrop-blur-sm text-[10px] font-bold px-3 py-1.5 rounded-xl shadow-sm text-slate-700">Toca un pin para verla</div>
-                  </div>
-
-                  <div className="flex flex-col gap-3">
-                    {currentStationsPage.map((station, idx) => {
-                      const isSelected = currentStation?.id === station.id;
-                      const isCheapest = currentPage === 1 && idx === 0 && !station.isOutdated;
-                      const pObj = station.precios[fuelType];
-                      const bestPrice = getBestPrice(pObj);
-                      const hasAuto = pObj?.autoservicio > 0;
-                      const hasAsis = pObj?.asistido > 0;
-
-                      return (
-                        <div key={station.id} onClick={() => setCurrentStation(station)} className={`w-full flex items-center justify-between p-4 rounded-[1.5rem] cursor-pointer transition-all duration-300 ${isSelected ? "bg-slate-900 shadow-xl scale-[1.02]" : "bg-white shadow-[0_4px_20px_rgb(0,0,0,0.03)] hover:shadow-md"}`}>
-                          <div className="flex flex-col flex-1 overflow-hidden pr-2">
-                            <div className="flex items-center space-x-2 mb-1">
-                              {station.logo ? (<img src={station.logo} alt={station.distribuidor} className="h-6 w-6 object-contain rounded-full bg-white p-0.5" onError={(e) => { e.target.style.display = "none"; e.target.nextSibling.style.display = "block"; }} />) : null}
-                              <Fuel className={`w-5 h-5 ${isSelected ? 'text-slate-300' : 'text-slate-400'}`} style={{ display: station.logo ? "none" : "block" }} />
-                              <span className={`font-black text-sm truncate ${isSelected ? 'text-white' : 'text-slate-800'}`}>{station.distribuidor}</span>
-                              {isCheapest && <span className="text-[10px] font-extrabold text-emerald-800 bg-emerald-400/20 rounded-full px-1.5 py-0.5 ml-1 shrink-0 flex items-center"><TrendingUp className="w-2.5 h-2.5 mr-0.5" /> Top 1</span>}
-                            </div>
-                            <span className={`text-xs truncate font-medium ${isSelected ? 'text-slate-400' : 'text-slate-500'}`} title={station.direccion}>{station.direccion}</span>
-                            <div className="flex items-center mt-2">
-                              <span className={`text-[10px] flex items-center font-bold ${station.isOutdated ? "text-red-400" : isSelected ? "text-slate-400" : "text-slate-400"}`}>
-                                {station.isOutdated ? <AlertCircle className="w-3 h-3 mr-1" /> : <Clock className="w-3 h-3 mr-1" />}
-                                {station.isOutdated ? "Desactualizado" : station.actualizacion ? station.actualizacion.split(" ")[0] : "--"}
-                              </span>
-                            </div>
-                          </div>
-                          <div className="flex flex-col items-end justify-center shrink-0 pl-3 border-l border-white/10 min-w-[80px]">
-                            <span className={`text-2xl font-black tracking-tight ${isSelected ? 'text-white' : 'text-slate-900'}`}>{formatCLP(bestPrice)}</span>
-                            {hasAuto && hasAsis && pObj.autoservicio !== pObj.asistido ? (
-                              <div className={`text-[9px] font-bold mt-1 flex flex-col items-end leading-tight ${isSelected ? 'text-slate-400' : 'text-slate-400'}`}>
-                                <span className={isSelected ? 'text-blue-300' : 'text-blue-500'}>Auto: {formatCLP(pObj.autoservicio)}</span>
-                                <span>Asis: {formatCLP(pObj.asistido)}</span>
-                              </div>
-                            ) : hasAuto ? (
-                              <span className={`text-[9px] font-bold uppercase mt-1 ${isSelected ? 'text-blue-300' : 'text-blue-500'}`}>Autoservicio</span>
-                            ) : hasAsis ? (
-                              <span className={`text-[9px] font-bold uppercase mt-1 ${isSelected ? 'text-slate-400' : 'text-slate-400'}`}>Asistido</span>
-                            ) : null}
-                          </div>
+                  <div className="flex relative pr-12">
+                     <div className="w-10 flex flex-col items-center justify-center pt-4 pb-4 relative">
+                        <div className="w-[14px] h-[14px] rounded-full border-[3px] border-blue-500 bg-white z-10 relative"></div>
+                        <div className="absolute top-7 bottom-7 w-[2px] border-l-2 border-dashed border-slate-200 left-1/2 -translate-x-1/2"></div>
+                        <MapPin className="w-[18px] h-[18px] text-red-500 z-10 relative fill-red-100 mt-auto" />
+                     </div>
+                     <div className="flex-1 flex flex-col pl-2">
+                        <div className="relative border-b border-slate-100 pb-2">
+                           <RouteCityAutocomplete placeholder="¿Desde dónde viajas?" value={originCity} onSelect={setOriginCity} comunasData={comunasDataForRouting} />
                         </div>
-                      );
+                        <div className="relative pt-2">
+                           <RouteCityAutocomplete placeholder="¿Hacia dónde vas?" value={destCity} onSelect={setDestCity} comunasData={comunasDataForRouting} />
+                        </div>
+                     </div>
+                  </div>
+                </div>
+
+                {/* TARJETA VEHÍCULO / AJUSTES */}
+                <div className="mx-6 space-y-3">
+                   <h3 className="text-sm font-extrabold text-slate-800 ml-2 uppercase tracking-wide">Vehículo</h3>
+                   <div className="bg-white rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] overflow-hidden">
+                      <div className="flex items-center justify-between p-4 border-b border-slate-50">
+                         <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-600"><Car className="w-5 h-5"/></div>
+                            <span className="font-bold text-slate-700">Rendimiento</span>
+                         </div>
+                         <div className="flex items-center gap-1 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200">
+                            <input type="number" step="0.1" min="1" className="w-10 bg-transparent outline-none font-black text-right text-slate-900" value={efficiencyKml} onChange={(e)=>setEfficiencyKml(e.target.value)} />
+                            <span className="text-sm font-semibold text-slate-500">Km/L</span>
+                         </div>
+                      </div>
+                      <div className="flex items-center justify-between p-4 border-b border-slate-50">
+                         <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-orange-50 flex items-center justify-center text-orange-500"><Fuel className="w-5 h-5"/></div>
+                            <span className="font-bold text-slate-700">Combustible</span>
+                         </div>
+                         <div className="relative">
+                           <select className="bg-slate-50 pl-3 pr-8 py-2 rounded-xl border border-slate-200 font-black text-slate-900 outline-none cursor-pointer appearance-none" value={fuelType} onChange={(e)=>setFuelType(e.target.value)}>
+                              <option value="93">93 oct</option>
+                              <option value="95">95 oct</option>
+                              <option value="97">97 oct</option>
+                              <option value="diesel">Diesel</option>
+                           </select>
+                           <ChevronDown className="absolute right-2.5 top-2.5 w-4 h-4 text-slate-400 pointer-events-none" />
+                         </div>
+                      </div>
+                      <div className="flex items-center justify-between p-4">
+                         <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-600"><Ticket className="w-5 h-5"/></div>
+                            <span className="font-bold text-slate-700">Peajes y TAG</span>
+                         </div>
+                         <div className="flex items-center gap-2">
+                           <span className="text-xs font-bold text-emerald-600">Automático</span>
+                           <div className="w-10 h-6 bg-emerald-500 rounded-full relative flex items-center px-1">
+                             <div className="w-4 h-4 bg-white rounded-full absolute right-1"></div>
+                           </div>
+                         </div>
+                      </div>
+                   </div>
+                </div>
+
+                {/* VISTA MAPA MOBILE */}
+                <div className="lg:hidden">
+                   {ViajeMainContent}
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-6 pb-6 lg:pb-6">
+                {/* SECCIÓN CARGA TIPO DE COMBUSTIBLE */}
+                <div className="mx-6 mt-4 space-y-3">
+                  <h3 className="text-sm font-extrabold text-slate-800 ml-2 uppercase tracking-wide">Tipo de combustible</h3>
+                  <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
+                    {fuelOptionsCarga.map((type) => {
+                      const isSelected = fuelType === type;
+                      return (
+                        <button key={type} onClick={() => setFuelType(type)} className={`px-5 py-3 rounded-2xl text-sm font-bold transition-all whitespace-nowrap ${isSelected ? "bg-slate-900 text-white shadow-md" : "bg-white text-slate-600 shadow-[0_4px_20px_rgb(0,0,0,0.03)] hover:bg-slate-50"}`}>
+                          {type === "diesel" ? "Diesel" : type === "parafina" ? "Parafina" : type + " Octanos"}
+                        </button>
+                      )
                     })}
                   </div>
-                  
-                  {totalPages > 1 && (
-                    <div className="flex justify-between items-center mt-4 px-2">
-                      <button onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} disabled={currentPage === 1} className="w-10 h-10 flex items-center justify-center bg-white text-slate-800 rounded-full shadow-sm disabled:opacity-50 transition-active active:scale-95"><ChevronLeft className="w-5 h-5" /></button>
-                      <span className="text-xs font-bold text-slate-500">Página {currentPage} de {totalPages}</span>
-                      <button onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="w-10 h-10 flex items-center justify-center bg-white text-slate-800 rounded-full shadow-sm disabled:opacity-50 transition-active active:scale-95"><ChevronRight className="w-5 h-5" /></button>
-                    </div>
-                  )}
                 </div>
-              )}
-            </div>
-          )}
-        </div>
 
-        {/* FOOTER INFERIOR (Costo Total y Botón) */}
-        <div className="absolute bottom-0 left-0 right-0 bg-white rounded-t-[2.5rem] p-6 shadow-[0_-20px_40px_rgba(0,0,0,0.06)] z-30 pb-8 sm:pb-6">
-          
-          {calcMode === "carga" && currentStation && (
-            <div className="bg-slate-50 p-3 rounded-2xl mb-4 border border-slate-100 flex gap-2">
-              <div className="relative flex-[2]">
-                <input type="number" min="0" step={chargeMode === "liters" ? "0.1" : "1000"} value={inputValue} onChange={(e) => setInputValue(e.target.value)} className="w-full p-3 pl-4 pr-2 text-lg border border-slate-200 rounded-xl focus:ring-2 focus:ring-slate-900 outline-none font-black text-slate-900 bg-white" placeholder="0" />
-              </div>
-              <select value={chargeMode} onChange={(e) => { setChargeMode(e.target.value); setInputValue(""); }} className="flex-1 p-3 text-sm font-bold bg-slate-900 text-white rounded-xl outline-none cursor-pointer appearance-none text-center" >
-                <option value="money">Pesos ($)</option>
-                <option value="liters">Litros (L)</option>
-              </select>
-            </div>
-          )}
+                {/* SECCIÓN CARGA UBICACIÓN */}
+                <div className="mx-6 space-y-3">
+                  <h3 className="text-sm font-extrabold text-slate-800 ml-2 uppercase tracking-wide">Ubicación</h3>
+                  <div className="bg-white rounded-[2rem] p-2 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+                    <ComunaAutocomplete placeholder="¿En qué comuna buscas?" value={cargaComuna} onSelect={(c) => { setCargaComuna(c); setCurrentStation(null); }} comunas={availableComunas} />
+                  </div>
+                </div>
 
-          <div className="flex justify-between items-end mb-5">
-            <div className="flex flex-col">
-              <span className="text-[13px] font-bold text-slate-500 uppercase tracking-wider mb-1">
-                {calcMode === "carga" ? chargeMode === "money" ? "Recibirás aprox." : "Costo estimado" : "Costo Total Viaje"}
-              </span>
-              <span className="text-[2.5rem] font-black text-slate-900 tracking-tight leading-none">
-                {calcMode === "carga" && chargeMode === "money" ? `${resultValue.toFixed(1)} Lts` : formatCLP(resultValue)}
-              </span>
-            </div>
-            
-            {calcMode === "viaje" && resultValue > 0 && (
-              <div className="flex flex-col items-end gap-1.5 pb-1">
-                <span className="text-[11px] font-bold text-slate-400 flex items-center bg-slate-50 px-2 py-0.5 rounded-md"><Droplets className="w-3 h-3 mr-1 text-slate-400" /> {formatCLP(bencinaTotal)}</span>
-                <span className="text-[11px] font-bold text-slate-400 flex items-center bg-slate-50 px-2 py-0.5 rounded-md"><Ticket className="w-3 h-3 mr-1 text-slate-400" /> {formatCLP(peajeTotal)}</span>
+                {/* VISTA MAPA/LISTA MOBILE */}
+                <div className="lg:hidden">
+                   {CargaMainContent}
+                </div>
               </div>
             )}
           </div>
 
-          {calcMode === "viaje" && (
-            <button 
-              onClick={() => { if(detectedTolls.list.length > 0) setShowTollsModal(true) }} 
-              disabled={detectedTolls.list.length === 0}
-              className="w-full bg-slate-900 text-white rounded-[1.25rem] py-4 font-extrabold text-[15px] flex items-center justify-center gap-2 shadow-xl shadow-slate-900/20 active:scale-[0.98] transition-all disabled:opacity-50 disabled:active:scale-100"
-            >
-              <Ticket className="w-5 h-5" />
-              {detectedTolls.list.length > 0 ? 'Ver desglose de peajes' : 'Sin peajes en la ruta'}
-            </button>
-          )}
-
-          {calcMode === "carga" && !currentStation && (
-             <div className="w-full bg-slate-100 text-slate-400 rounded-[1.25rem] py-4 font-extrabold text-[15px] flex items-center justify-center gap-2 text-center">
-                Selecciona una estación para simular
-             </div>
-          )}
+          {/* FOOTER INFERIOR (Costo Total y Botón) */}
+          <div className="absolute lg:relative bottom-0 left-0 right-0 bg-white rounded-t-[2.5rem] lg:rounded-none p-6 shadow-[0_-20px_40px_rgba(0,0,0,0.06)] lg:shadow-none lg:border-t lg:border-slate-200 z-30 pb-8 sm:pb-6 lg:p-6 lg:mt-auto">
+            {FooterContent}
+          </div>
+        </div>
+        
+        {/* ================= PANEL DERECHO (DESKTOP) ================= */}
+        <div className="hidden lg:flex flex-1 bg-slate-50/50 p-8 overflow-y-auto no-scrollbar relative flex-col">
+           {calcMode === 'carga' ? (
+               (cargaComuna && filteredStationsCarga.length > 0) ? (
+                   <div className="w-full h-full">{CargaMainContent}</div>
+               ) : (
+                   <div className="w-full h-full flex flex-col items-center justify-center text-slate-400 opacity-60">
+                      <MapPin className="w-16 h-16 mb-4" />
+                      <p className="text-lg font-bold text-center max-w-xs">Selecciona una comuna para ver las estaciones cercanas</p>
+                   </div>
+               )
+           ) : (
+               (originCity && destCity) ? (
+                   <div className="w-full h-full flex flex-col">{ViajeMainContent}</div>
+               ) : (
+                   <div className="w-full h-full flex flex-col items-center justify-center text-slate-400 opacity-60">
+                      <Route className="w-16 h-16 mb-4" />
+                      <p className="text-lg font-bold text-center max-w-xs">Ingresa tu punto de origen y destino para trazar la ruta</p>
+                   </div>
+               )
+           )}
         </div>
         
         {/* ================= MODAL DE PEAJES ================= */}
         {showTollsModal && (
-          <div className="absolute inset-0 z-[1000] bg-slate-900/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-4 sm:p-0">
+          <div className="fixed inset-0 z-[1000] bg-slate-900/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-4 sm:p-0">
             <div className="bg-white w-full max-w-sm rounded-[2.5rem] shadow-2xl p-6 animate-in slide-in-from-bottom-8 duration-300 mb-4 sm:mb-0">
                <div className="flex justify-between items-center mb-6">
                   <h3 className="font-black text-slate-900 flex items-center text-xl">
@@ -1215,7 +1268,6 @@ const fetchRoute = async () => {
           </div>
         )}
 
-        <style>{`.no-scrollbar::-webkit-scrollbar { display: none; } .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }`}</style>
       </div>
     </div>
   );
