@@ -788,11 +788,9 @@ export default function App() {
         console.log("[CNE] 📡 Iniciando conexión con API CNE...");
         
         // 🔥 Corrección CNE: Evitamos el proxy local en entornos que no lo soportan (como Canvas)
-        const isLocalhost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
-        const baseUrl = isLocalhost ? "/api-cne" : "https://api.cne.cl";
         
-        const loginUrl = `${baseUrl}/api/login`;
-        const estacionesUrl = `${baseUrl}/api/v4/estaciones`;
+        const loginUrl = `/api-cne/api/login`;
+        const estacionesUrl = `/api-cne/api/v4/estaciones`;
 
         const loginRes = await fetch(loginUrl, {
           method: "POST",
