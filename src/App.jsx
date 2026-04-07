@@ -873,11 +873,9 @@ export default function App() {
     const fetchPrecios = async () => {
       setIsLoading(true);
       try {
-        const isLocalhost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
-        const baseUrl = isLocalhost ? "/api-cne" : "https://api.cne.cl";
         
-        const loginUrl = `${baseUrl}/api/login`;
-        const estacionesUrl = `${baseUrl}/api/v4/estaciones`;
+        const loginUrl = `/api-cne/api/login`;
+        const estacionesUrl = `/api-cne/api/v4/estaciones`;
 
         const loginRes = await fetch(loginUrl, {
           method: "POST",
