@@ -255,7 +255,7 @@ function detectTollsInRoute(geometry) {
   const endLon = geometry.coordinates[geometry.coordinates.length - 1][0];
   const endLat = geometry.coordinates[geometry.coordinates.length - 1][1];
 
-  // 🔥 DENSIFICAR RUTA
+  // 🔥 DENSIFICAR RUTA (Alta resolución: 1 punto cada 200m)
   const densePoints = [];
   for (let i = 0; i < geometry.coordinates.length - 1; i++) {
     const [lon1, lat1] = geometry.coordinates[i];
@@ -263,8 +263,8 @@ function detectTollsInRoute(geometry) {
     densePoints.push([lon1, lat1]);
     
     const dist = getStraightLineDistance(lat1, lon1, lat2, lon2);
-    if (dist > 1) { 
-      const steps = Math.floor(dist);
+    if (dist > 0.2) { 
+      const steps = Math.floor(dist / 0.2);
       for (let j = 1; j <= steps; j++) {
         const fraction = j / (steps + 1);
         const ilon = lon1 + (lon2 - lon1) * fraction;
@@ -275,7 +275,8 @@ function detectTollsInRoute(geometry) {
   }
   densePoints.push(geometry.coordinates[geometry.coordinates.length - 1]);
 
-  const tolerance = 4;
+  // Tolerancia mucho más estricta (400 metros) para evitar falsos positivos en desvíos/bypasses
+  const tolerance = 0.4;
 
   // 🔥 DETECCIÓN
   densePoints.forEach((coord) => {
@@ -350,7 +351,9 @@ function generateMapHtml(origin, dest, geometry, isRoundTrip, tolls = []) {
     <body>
         <div id="map"></div>
         <script>
-            var map = L.map('map', { zoomControl: false });
+            var map = L.map('map', { zoomControl: true });
+            L.control.zoom({ position: 'bottomright' }).addTo(map);
+            
             L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(map);
             var originCoord = [${origin.lat}, ${origin.lon}];
             var destCoord = [${dest.lat}, ${dest.lon}];
@@ -374,7 +377,7 @@ function generateMapHtml(origin, dest, geometry, isRoundTrip, tolls = []) {
   `;
 }
 
-function generateStationsMapHtml(stations, selectedStation, userLoc) {
+function generateStationsMapHtml(stations, selectedStation, userLoc, showRouteLine) {
   if (!stations || stations.length === 0) return "";
   const selectedId = selectedStation?.id;
   const markersJs = stations
@@ -413,13 +416,21 @@ function generateStationsMapHtml(stations, selectedStation, userLoc) {
       `;
   }
 
-  const boundsPoints = stations.map(s => `[${s.lat}, ${s.lon}]`).join(",");
-  const userPoint = userLoc ? `, [${userLoc.lat}, ${userLoc.lon}]` : "";
-  const boundsJs = `var bounds = L.latLngBounds([${boundsPoints}${userPoint}]);`;
-
-  const mapViewJs = selectedStation 
-    ? `map.setView([${selectedStation.lat}, ${selectedStation.lon}], 16);`
-    : `${boundsJs} map.fitBounds(bounds, {padding: [20, 20], maxZoom: 15});`;
+  let mapViewJs = "";
+  if (showRouteLine && selectedStation && userLoc) {
+    mapViewJs = `
+      var routeLine = L.polyline([[${userLoc.lat}, ${userLoc.lon}], [${selectedStation.lat}, ${selectedStation.lon}]], {color: '#3b82f6', weight: 3, dashArray: '6, 8', opacity: 0.8}).addTo(map);
+      map.fitBounds(routeLine.getBounds(), {padding: [40, 40], maxZoom: 13});
+    `;
+  } else if (selectedStation) {
+    mapViewJs = `map.setView([${selectedStation.lat}, ${selectedStation.lon}], 13);`;
+  } else {
+    const boundsPoints = stations.map(s => `[${s.lat}, ${s.lon}]`).join(",");
+    mapViewJs = `
+      var bounds = L.latLngBounds([${boundsPoints}]);
+      map.fitBounds(bounds, {padding: [20, 20], maxZoom: 13});
+    `;
+  }
 
   return `
     <!DOCTYPE html>
@@ -438,6 +449,8 @@ function generateStationsMapHtml(stations, selectedStation, userLoc) {
         <div id="map"></div>
         <script>
             var map = L.map('map', { zoomControl: false });
+            L.control.zoom({ position: 'bottomright' }).addTo(map);
+            
             L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(map);
             ${markersJs}
             ${userMarkerJs}
@@ -479,6 +492,7 @@ const RouteCityAutocomplete = ({ placeholder, value, onSelect, comunasData, isOr
   }, [query, isOpen, comunasData, value]);
 
   const handleSelectCity = async (cityName) => {
+    console.log(`[Geocoder] 📡 Buscando coordenadas para ciudad: ${cityName}`);
     setQuery(cityName); setIsOpen(false); setIsLoadingCoords(true);
     try {
       const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&countrycodes=cl&city=${encodeURIComponent(cityName)}&limit=1`);
@@ -486,6 +500,7 @@ const RouteCityAutocomplete = ({ placeholder, value, onSelect, comunasData, isOr
       const data = await res.json();
       const fallbackCity = comunasData.find((c) => c.mainName === cityName);
       if (data && data.length > 0) {
+        console.log(`[Geocoder] ✅ Ciudad encontrada: ${cityName} [${data[0].lat}, ${data[0].lon}]`);
         onSelect({ 
           mainName: cityName, 
           name: cityName, 
@@ -657,6 +672,11 @@ export default function App() {
       const updatedRecents = [c, ...recentComunas.filter(rc => rc !== c)].slice(0, 3);
       setRecentComunas(updatedRecents);
       localStorage.setItem('bencinaapp_recent_comunas', JSON.stringify(updatedRecents));
+      
+      // AUTO-ADVANCE EN MOBILE AL ELEGIR COMUNA
+      if (window.innerWidth < 1024) {
+         setMobileStep(2);
+      }
     }
   };
 
@@ -681,7 +701,6 @@ export default function App() {
           
           if (closestComuna) {
             handleSelectComuna(closestComuna);
-            setSortBy('distance');
           }
           setIsLocating(false);
         },
@@ -718,6 +737,12 @@ export default function App() {
     
     return list;
   }, [cneStations, cargaComuna, fuelType, sortBy, userLocation]);
+
+  // Chequeo para mostrar el toggle de "Por Cercanía"
+  const isUserNearCurrentComuna = React.useMemo(() => {
+    if (!userLocation || filteredStationsCarga.length === 0) return false;
+    return filteredStationsCarga.some(s => s.distToUser !== null && s.distToUser <= 50);
+  }, [userLocation, filteredStationsCarga]);
 
   // Al abrir la configuración, pre-carga los valores actuales
   useEffect(() => {
@@ -762,7 +787,10 @@ export default function App() {
 
   useEffect(() => {
     if (calcMode === "carga" && cargaComuna && filteredStationsCarga.length > 0) {
-      const html = generateStationsMapHtml(filteredStationsCarga, currentStation, userLocation);
+      // Determinamos si mostramos la línea de ruta a la bencinera
+      const showRouteLine = userLocation && currentStation && currentStation.distToUser !== null && currentStation.distToUser <= 50;
+      
+      const html = generateStationsMapHtml(filteredStationsCarga, currentStation, userLocation, showRouteLine);
       const url = URL.createObjectURL(new Blob([html], { type: "text/html" }));
       setStationsMapUrl(url);
       return () => URL.revokeObjectURL(url);
@@ -873,7 +901,6 @@ export default function App() {
     const fetchPrecios = async () => {
       setIsLoading(true);
       try {
-        
         const loginUrl = `/api-cne/api/login`;
         const estacionesUrl = `/api-cne/api/v4/estaciones`;
 
@@ -1093,24 +1120,25 @@ export default function App() {
               <h3 className="text-sm font-extrabold text-slate-800 uppercase tracking-wide">Estaciones</h3>
               <span className="text-[10px] font-bold text-slate-500 bg-slate-200 px-2 py-0.5 rounded-full">{filteredStationsCarga.length}</span>
            </div>
-           
-           {userLocation && (
-             <div className="flex bg-slate-200 p-0.5 rounded-lg">
-               <button onClick={() => setSortBy('price')} className={`text-[10px] font-bold px-2 py-1 rounded-md transition-colors ${sortBy === 'price' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500'}`}>Precio</button>
-               <button onClick={() => setSortBy('distance')} className={`text-[10px] font-bold px-2 py-1 rounded-md transition-colors ${sortBy === 'distance' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500'}`}>Cercanía</button>
-             </div>
-           )}
         </div>
 
         {/* MAPA FIJO */}
-        <div className="w-full h-[30vh] lg:h-[40%] shrink-0 rounded-[2rem] overflow-hidden shadow-sm border-[6px] border-white relative bg-slate-200">
+        <div className="w-full h-[30vh] lg:h-[350px] lg:min-h-[350px] shrink-0 rounded-[2rem] overflow-hidden shadow-sm border-[6px] border-white relative bg-slate-200">
           {stationsMapUrl ? (
-            <iframe src={stationsMapUrl} title="Mapa Estaciones" width="100%" height="100%" style={{ border: 0 }} sandbox="allow-scripts allow-same-origin" />
+            <iframe key={`carga-map-${stationsMapUrl}-${mobileStep}`} src={stationsMapUrl} title="Mapa Estaciones" width="100%" height="100%" style={{ border: 0 }} sandbox="allow-scripts allow-same-origin" />
           ) : (
             <div className="absolute inset-0 flex items-center justify-center text-slate-400"><Loader2 className="w-6 h-6 animate-spin" /></div>
           )}
           <div className="absolute top-3 left-3 bg-white/90 backdrop-blur-sm text-[10px] font-bold px-3 py-1.5 rounded-xl shadow-sm text-slate-700 pointer-events-none">Toca un pin para verla</div>
         </div>
+
+        {/* Toggle (New location) - Solo aparece si hay ubicación del usuario Y si está dentro de un rango de 50km de alguna estación listada */}
+        {isUserNearCurrentComuna && (
+             <div className="flex bg-slate-200 p-1.5 rounded-xl shrink-0">
+               <button onClick={() => setSortBy('price')} className={`flex-1 text-[13px] font-bold px-3 py-2 rounded-lg transition-colors shadow-sm ${sortBy === 'price' ? 'bg-white text-slate-800' : 'text-slate-500 shadow-none hover:text-slate-700'}`}>Por Precio</button>
+               <button onClick={() => setSortBy('distance')} className={`flex-1 text-[13px] font-bold px-3 py-2 rounded-lg transition-colors shadow-sm ${sortBy === 'distance' ? 'bg-white text-slate-800' : 'text-slate-500 shadow-none hover:text-slate-700'}`}>Por Cercanía</button>
+             </div>
+        )}
 
         {/* LISTA CON SCROLL INTERNO */}
         <div className="flex-1 overflow-y-auto no-scrollbar pb-6 lg:pb-0 lg:pr-2">
@@ -1122,7 +1150,7 @@ export default function App() {
               const bestPrice = getBestPrice(pObj);
 
               return (
-                <div key={station.id} onClick={() => setCurrentStation(isSelected ? null : station)} className={`w-full shrink-0 flex flex-col p-4 rounded-[1.5rem] cursor-pointer transition-all duration-300 transform-gpu ${isSelected ? "bg-slate-900 shadow-xl ring-4 ring-slate-200" : "bg-white shadow-[0_4px_20px_rgb(0,0,0,0.03)] hover:shadow-md"}`}>
+                <div key={station.id} onClick={() => setCurrentStation(isSelected ? null : station)} className={`w-full shrink-0 flex flex-col p-3.5 rounded-[1.5rem] cursor-pointer transition-all duration-300 transform-gpu ${isSelected ? "bg-slate-900 shadow-xl ring-4 ring-slate-200" : "bg-white shadow-[0_4px_20px_rgb(0,0,0,0.03)] hover:shadow-md"}`}>
                   <div className="flex items-center justify-between">
                     <div className="flex flex-col flex-1 overflow-hidden pr-2">
                       <div className="flex items-center space-x-2 mb-1">
@@ -1155,9 +1183,12 @@ export default function App() {
                   {/* --- SECCIÓN DESPLEGABLE CON TODOS LOS PRECIOS --- */}
                   <div className={`grid transition-all duration-500 ease-in-out ${isSelected ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}>
                     <div className="overflow-hidden">
-                      <div className="pt-4 mt-4 border-t border-slate-700/30 flex flex-col gap-3">
-                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Todos los precios de esta estación</span>
-                        <div className="grid grid-cols-2 gap-2">
+                      <div className="pt-2 mt-2 border-t border-slate-700/30 flex flex-col gap-2">
+                        <div className="flex items-center justify-between">
+                           <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Todos los precios</span>
+                           <button onClick={(e) => { e.stopPropagation(); setCurrentStation(null); }} className="bg-slate-700 hover:bg-slate-600 text-slate-300 p-1 rounded-full transition-colors"><X className="w-3 h-3" /></button>
+                        </div>
+                        <div className="grid grid-cols-2 gap-1.5">
                           {["93", "95", "97", "diesel", "parafina"].map((t) => {
                             const p = station.precios[t];
                             const auto = p?.autoservicio || 0;
@@ -1169,17 +1200,17 @@ export default function App() {
                             const isThisFuelSelected = t === fuelType;
                             
                             return (
-                              <div key={t} className={`rounded-xl p-3 flex flex-col justify-center border transition-colors ${isThisFuelSelected ? 'bg-blue-600 border-blue-500' : 'bg-slate-800 border-slate-700'}`}>
-                                <span className={`text-[10px] font-bold uppercase mb-1 ${isThisFuelSelected ? 'text-blue-100' : 'text-slate-400'}`}>
-                                  {t === "diesel" ? "Diesel" : t === "parafina" ? "Parafina" : `${t} Octanos`}
+                              <div key={t} className={`rounded-xl p-2 flex flex-col justify-center border transition-colors ${isThisFuelSelected ? 'bg-blue-600 border-blue-500' : 'bg-slate-800 border-slate-700'}`}>
+                                <span className={`text-[8px] font-bold uppercase mb-0.5 ${isThisFuelSelected ? 'text-blue-100' : 'text-slate-400'}`}>
+                                  {t === "diesel" ? "Diesel" : t === "parafina" ? "Parafina" : `${t} Oct`}
                                 </span>
                                 {auto > 0 && asis > 0 && auto !== asis ? (
                                   <div className="flex flex-col">
-                                    <span className="text-xs font-black text-white" title="Autoservicio">Auto: {formatCLP(auto)}</span>
-                                    <span className={`text-[10px] font-bold ${isThisFuelSelected ? 'text-blue-200' : 'text-slate-400'}`} title="Asistido">Asis: {formatCLP(asis)}</span>
+                                    <span className="text-[10px] font-black text-white" title="Autoservicio">Auto: {formatCLP(auto)}</span>
+                                    <span className={`text-[9px] font-bold ${isThisFuelSelected ? 'text-blue-200' : 'text-slate-400'}`} title="Asistido">Asis: {formatCLP(asis)}</span>
                                   </div>
                                 ) : (
-                                  <span className="text-sm font-black text-white">{formatCLP(bestP)}</span>
+                                  <span className="text-[12px] font-black text-white">{formatCLP(bestP)}</span>
                                 )}
                               </div>
                             );
@@ -1190,9 +1221,9 @@ export default function App() {
                           target="_blank"
                           rel="noopener noreferrer"
                           onClick={(e) => e.stopPropagation()} 
-                          className="mt-2 w-full bg-blue-500 hover:bg-blue-400 text-white rounded-xl py-3 text-[13px] font-extrabold flex items-center justify-center gap-2 shadow-md transition-colors"
+                          className="w-full bg-blue-500 hover:bg-blue-400 text-white rounded-xl py-2 text-[11px] font-extrabold flex items-center justify-center gap-1.5 shadow-md transition-colors"
                         >
-                          <MapPin className="w-4 h-4" /> Cómo llegar
+                          <MapPin className="w-3.5 h-3.5" /> Cómo llegar
                         </a>
                       </div>
                     </div>
@@ -1237,7 +1268,7 @@ export default function App() {
             </div>
           ) : (
             <>
-              <iframe key={`map-${originCity.lat}-${destCity.lat}-${isRoundTrip}`} src={mapUrl} title="Mapa de la ruta" width="100%" height="100%" style={{ border: 0 }} sandbox="allow-scripts allow-same-origin" />
+              <iframe key={`viaje-map-${mapUrl}-${mobileStep}`} src={mapUrl} title="Mapa de la ruta" width="100%" height="100%" style={{ border: 0 }} sandbox="allow-scripts allow-same-origin" />
               <div className="absolute bottom-3 left-1/2 -translate-x-1/2 bg-white/90 backdrop-blur-md px-4 py-2.5 rounded-full shadow-lg flex items-center gap-3 z-20 cursor-pointer" onClick={() => setIsRoundTrip(!isRoundTrip)}>
                  <span className="text-[13px] font-bold text-slate-800 whitespace-nowrap select-none">Ida y vuelta</span>
                  <button className={`w-11 h-6 rounded-full relative transition-colors ${isRoundTrip ? 'bg-blue-600' : 'bg-slate-300'}`}>
@@ -1293,8 +1324,8 @@ export default function App() {
   }
 
   return (
-    <div className="bg-slate-100 flex items-center justify-center font-sans text-slate-800 min-h-screen sm:p-6 lg:p-8">
-      <div className="w-full max-w-md lg:max-w-5xl bg-[#f8fafc] sm:rounded-[3rem] lg:rounded-[2rem] sm:shadow-2xl flex flex-col lg:flex-row h-[100dvh] sm:h-[850px] lg:h-[80vh] lg:min-h-[700px] overflow-hidden relative">
+    <div className="bg-slate-100 sm:flex items-center justify-center font-sans text-slate-800 min-h-screen sm:p-6 lg:p-8">
+      <div className="w-full max-w-md mx-auto lg:max-w-5xl bg-[#f8fafc] sm:rounded-[3rem] lg:rounded-[2rem] sm:shadow-2xl flex flex-col lg:flex-row h-[100dvh] sm:h-[850px] lg:h-[80vh] lg:min-h-[700px] overflow-hidden fixed inset-0 sm:relative z-50">
         
         {/* ================= PANEL IZQUIERDO (CONTROLES) ================= */}
         <div className={`flex flex-col w-full lg:w-[420px] h-full relative z-20 bg-[#f8fafc] lg:border-r border-slate-200 shrink-0 ${mobileStep === 2 ? 'hidden lg:flex' : 'flex'}`}>
@@ -1330,7 +1361,7 @@ export default function App() {
           </div>
 
           {/* CONTROLES SCROLLABLES */}
-          <div className="flex-1 overflow-y-auto pb-40 lg:pb-0 no-scrollbar">
+          <div className="flex-1 overflow-y-auto no-scrollbar pb-6 lg:pb-0">
             {calcMode === "viaje" ? (
               <div className="space-y-6 pb-6 lg:pb-6">
                 
@@ -1450,7 +1481,7 @@ export default function App() {
           </div>
 
           {/* FOOTER PANEL IZQUIERDO (BOTON MOBILE O FOOTER DESKTOP) */}
-          <div className="absolute lg:relative bottom-0 left-0 right-0 bg-white rounded-t-[2.5rem] lg:rounded-none p-6 shadow-[0_-20px_40px_rgba(0,0,0,0.06)] lg:shadow-none lg:border-t lg:border-slate-200 z-30 pb-8 sm:pb-6 lg:p-6 lg:mt-auto">
+          <div className="mt-auto shrink-0 w-full bg-white rounded-t-[2.5rem] lg:rounded-none p-6 shadow-[0_-20px_40px_rgba(0,0,0,0.06)] lg:shadow-none lg:border-t lg:border-slate-200 z-30 pb-8 sm:pb-6 lg:p-6">
              <div className="lg:hidden">
                 {calcMode === 'viaje' ? (
                    <button 
