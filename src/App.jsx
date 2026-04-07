@@ -66,6 +66,12 @@ const REGION_MAP = {
   magallanes: "XII",
 };
 
+// Función global para quitar acentos y normalizar textos
+const normalizeString = (str) => {
+  if (!str) return "";
+  return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+};
+
 // =========================
 // 🚧 MEGA PEAJES DB (CLASIFICADOS TRONCAL/LATERAL)
 // =========================
@@ -79,7 +85,7 @@ const PEAJES_DB = [
   
   // --- RUTA 5 NORTE ---
   { id: "p_lampa", nombre: "Peaje Lampa", lat: -33.262, lon: -70.825, precio: 900, tipo: "peaje" },
-  { id: "p_lampa_lat", nombre: "Peaje Lampa Lateral", lat: -33.255, lon: -70.82, precio: 0, tipo: "peaje" },
+  { id: "p_lampa_lat", nombre: "Peaje Lampa Lateral", lat: -33.255, lon: -70.82, precio: 0, tipo: "lateral" },
   { id: "p_lasvegas", nombre: "Peaje Las Vegas", lat: -32.812, lon: -70.963, precio: 2900, tipo: "peaje" },
   { id: "p_elmelon", nombre: "Peaje El Melón", lat: -32.617, lon: -71.233, precio: 2900, tipo: "peaje" },
   { id: "p_pichidangui", nombre: "Peaje Pichidangui", lat: -32.138, lon: -71.506, precio: 2900, tipo: "peaje" },
@@ -95,8 +101,8 @@ const PEAJES_DB = [
   // --- RUTA 5 SUR ---
   { id: "p_riomaipo", nombre: "Peaje Río Maipo (Acceso Sur)", lat: -33.743, lon: -70.739, precio: 1400, tipo: "peaje" },
   { id: "p_angostura", nombre: "Peaje Angostura", lat: -33.896, lon: -70.735, precio: 3800, tipo: "peaje" },
-  { id: "p_angostura_lat_n", nombre: "Angostura Lateral Norte", lat: -33.885, lon: -70.735, precio: 0, tipo: "peaje" },
-  { id: "p_angostura_lat_s", nombre: "Angostura Lateral Sur", lat: -33.905, lon: -70.735, precio: 0, tipo: "peaje" },
+  { id: "p_angostura_lat_n", nombre: "Angostura Lateral Norte", lat: -33.885, lon: -70.735, precio: 0, tipo: "lateral" },
+  { id: "p_angostura_lat_s", nombre: "Angostura Lateral Sur", lat: -33.905, lon: -70.735, precio: 0, tipo: "lateral" },
   { id: "p_quinta", nombre: "Peaje Quinta", lat: -34.981, lon: -71.238, precio: 3800, tipo: "peaje" },
   { id: "p_rioclaro", nombre: "Peaje Río Claro", lat: -35.15, lon: -71.27, precio: 3300, tipo: "peaje" },
   { id: "p_retiro", nombre: "Peaje Retiro", lat: -35.34, lon: -71.6, precio: 3300, tipo: "peaje" },
@@ -107,7 +113,7 @@ const PEAJES_DB = [
   { id: "p_lasmaicas", nombre: "Peaje Las Maicas", lat: -37.806, lon: -72.331, precio: 3400, tipo: "peaje" },
   { id: "p_pua", nombre: "Peaje Púa", lat: -38.362, lon: -72.386, precio: 3600, tipo: "peaje" },
   { id: "p_quepe", nombre: "Peaje Quepe", lat: -38.915, lon: -72.624, precio: 3600, tipo: "peaje" },
-  { id: "p_licanco", nombre: "Peaje Lateral Licanco", lat: -38.782, lon: -72.611, precio: 0, tipo: "peaje" },
+  { id: "p_licanco", nombre: "Peaje Lateral Licanco", lat: -38.782, lon: -72.611, precio: 0, tipo: "lateral" },
   { id: "p_freire", nombre: "Peaje Freire", lat: -38.95, lon: -72.6, precio: 3500, tipo: "peaje" },
   { id: "p_lanco", nombre: "Peaje Lanco", lat: -39.45, lon: -72.75, precio: 3600, tipo: "peaje" },
   { id: "p_launion", nombre: "Peaje La Unión", lat: -40.3, lon: -73.05, precio: 3600, tipo: "peaje" },
@@ -183,7 +189,7 @@ function extractRegionId(displayName) {
   return "RM";
 }
 
-// Distancia lineal pura para detectar los peajes exactos
+// Distancia lineal pura (retorna kms como float)
 function getStraightLineDistance(lat1, lon1, lat2, lon2) {
   if (lat1 === lat2 && lon1 === lon2) return 0;
   const R = 6371;
@@ -201,18 +207,36 @@ function getStraightLineDistance(lat1, lon1, lat2, lon2) {
 
 // Distancia con factor corrector para estimar la ruta general
 function calculateHaversineDistance(lat1, lon1, lat2, lon2) {
-  if (lat1 === lat2 && lon1 === lon2) return 0;
-  const R = 6371;
-  const dLat = ((lat2 - lat1) * Math.PI) / 180;
-  const dLon = ((lon2 - lon1) * Math.PI) / 180;
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos((lat1 * Math.PI) / 180) *
-      Math.cos((lat2 * Math.PI) / 180) *
-      Math.sin(dLon / 2) *
-      Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return Math.round(R * c * 1.3);
+  return Math.round(getStraightLineDistance(lat1, lon1, lat2, lon2) * 1.3);
+}
+
+// Decodificador de Polyline (Transforma el string raro de ORS en coordenadas legibles)
+function decodePolyline(encoded, precision = 5) {
+  const factor = Math.pow(10, precision);
+  let index = 0, lat = 0, lng = 0, coordinates = [];
+  
+  while (index < encoded.length) {
+    let byte, shift = 0, result = 0;
+    do {
+      byte = encoded.charCodeAt(index++) - 63;
+      result |= (byte & 0x1f) << shift;
+      shift += 5;
+    } while (byte >= 0x20);
+    const latitude_change = ((result & 1) ? ~(result >> 1) : (result >> 1));
+    lat += latitude_change;
+    
+    shift = 0; result = 0;
+    do {
+      byte = encoded.charCodeAt(index++) - 63;
+      result |= (byte & 0x1f) << shift;
+      shift += 5;
+    } while (byte >= 0x20);
+    const longitude_change = ((result & 1) ? ~(result >> 1) : (result >> 1));
+    lng += longitude_change;
+    
+    coordinates.push([lng / factor, lat / factor]); // Formato [lon, lat] para L.polyline
+  }
+  return coordinates;
 }
 
 // =========================
@@ -263,7 +287,6 @@ function detectTollsInRoute(geometry) {
         
         if (p.tipo === "lateral") {
           // Generalmente los peajes laterales se pagan al salir de la carretera hacia la ciudad destino.
-          // Por lo tanto, solo lo sumamos si está cerca del destino final, no del origen.
           const distToEnd = getStraightLineDistance(p.lat, p.lon, endLat, endLon);
           
           if (distToEnd <= 15 && distToRoute <= tolerance) {
@@ -351,7 +374,7 @@ function generateMapHtml(origin, dest, geometry, isRoundTrip, tolls = []) {
   `;
 }
 
-function generateStationsMapHtml(stations, selectedStation) {
+function generateStationsMapHtml(stations, selectedStation, userLoc) {
   if (!stations || stations.length === 0) return "";
   const selectedId = selectedStation?.id;
   const markersJs = stations
@@ -375,10 +398,28 @@ function generateStationsMapHtml(stations, selectedStation) {
     `;
     })
     .join("\n");
+    
+  let userMarkerJs = "";
+  if (userLoc) {
+      userMarkerJs = `
+          L.marker([${userLoc.lat}, ${userLoc.lon}], {
+              icon: L.divIcon({
+                  className: 'user-marker',
+                  html: '<div style="background-color:#2563eb; width:16px; height:16px; border:3px solid white; border-radius:50%; box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.4);"></div>',
+                  iconSize: [22, 22]
+              }),
+              zIndexOffset: 2000
+          }).addTo(map).bindPopup("<b>Tu ubicación</b>");
+      `;
+  }
+
+  const boundsPoints = stations.map(s => `[${s.lat}, ${s.lon}]`).join(",");
+  const userPoint = userLoc ? `, [${userLoc.lat}, ${userLoc.lon}]` : "";
+  const boundsJs = `var bounds = L.latLngBounds([${boundsPoints}${userPoint}]);`;
 
   const mapViewJs = selectedStation 
     ? `map.setView([${selectedStation.lat}, ${selectedStation.lon}], 16);`
-    : `map.fitBounds(group.getBounds(), {padding: [20, 20], maxZoom: 15});`;
+    : `${boundsJs} map.fitBounds(bounds, {padding: [20, 20], maxZoom: 15});`;
 
   return `
     <!DOCTYPE html>
@@ -399,7 +440,7 @@ function generateStationsMapHtml(stations, selectedStation) {
             var map = L.map('map', { zoomControl: false });
             L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(map);
             ${markersJs}
-            var group = new L.featureGroup([${stations.map((s) => `L.marker([${s.lat}, ${s.lon}])`).join(",")}]);
+            ${userMarkerJs}
             ${mapViewJs}
         </script>
     </body>
@@ -417,29 +458,34 @@ const RouteCityAutocomplete = ({ placeholder, value, onSelect, comunasData, isOr
 
   useEffect(() => {
     if (!isOpen) { setResults([]); return; }
-    const safeQuery = (query || "").toLowerCase();
-    if (!safeQuery || (value && safeQuery === (value.mainName || "").toLowerCase())) {
+    const safeQuery = normalizeString(query);
+    if (!safeQuery || (value && normalizeString(value.mainName) === safeQuery)) {
       setResults(comunasData.slice(0, 50));
       return;
     }
-    const filtered = comunasData.filter((c) => (c.mainName || "").toLowerCase().includes(safeQuery)).slice(0, 50);
-    setResults(filtered);
+    const filtered = comunasData.filter((c) => normalizeString(c.mainName).includes(safeQuery));
+    
+    filtered.sort((a, b) => {
+      const nameA = normalizeString(a.mainName);
+      const nameB = normalizeString(b.mainName);
+      const startsA = nameA.startsWith(safeQuery);
+      const startsB = nameB.startsWith(safeQuery);
+      if (startsA && !startsB) return -1;
+      if (!startsA && startsB) return 1;
+      return nameA.localeCompare(nameB);
+    });
+
+    setResults(filtered.slice(0, 50));
   }, [query, isOpen, comunasData, value]);
 
   const handleSelectCity = async (cityName) => {
-    console.log(`[Geocoder] 📡 Buscando coordenadas para ciudad: ${cityName}`);
     setQuery(cityName); setIsOpen(false); setIsLoadingCoords(true);
     try {
       const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&countrycodes=cl&city=${encodeURIComponent(cityName)}&limit=1`);
       
-      if (!res.ok) {
-         console.error(`[Geocoder] ❌ Error HTTP buscando ciudad: ${res.status}`);
-      }
-
       const data = await res.json();
       const fallbackCity = comunasData.find((c) => c.mainName === cityName);
       if (data && data.length > 0) {
-        console.log(`[Geocoder] ✅ Ciudad encontrada: ${cityName} [${data[0].lat}, ${data[0].lon}]`);
         onSelect({ 
           mainName: cityName, 
           name: cityName, 
@@ -449,11 +495,9 @@ const RouteCityAutocomplete = ({ placeholder, value, onSelect, comunasData, isOr
           regionName: fallbackCity?.regionName || ""
         });
       } else { 
-        console.warn(`[Geocoder] ⚠️ No se encontraron coordenadas para: ${cityName}. Usando centro aproximado.`);
         onSelect(fallbackCity); 
       }
     } catch (err) { 
-      console.error(`[Geocoder] ❌ Excepción buscando ciudad (${cityName}):`, err.message);
       onSelect(comunasData.find((c) => c.mainName === cityName)); 
     } 
     finally { setIsLoadingCoords(false); }
@@ -505,13 +549,24 @@ const ComunaAutocomplete = ({ placeholder, value, onSelect, comunas }) => {
 
   useEffect(() => {
     if (!isOpen) { setResults([]); return; }
-    const safeQuery = (query || "").toLowerCase();
-    if (!safeQuery || safeQuery === (value || "").toLowerCase()) {
+    const safeQuery = normalizeString(query);
+    if (!safeQuery || safeQuery === normalizeString(value)) {
       setResults(comunas.slice(0, 50));
       return;
     }
-    const filtered = comunas.filter((c) => (c.comuna || "").toLowerCase().includes(safeQuery)).slice(0, 50);
-    setResults(filtered);
+    const filtered = comunas.filter((c) => normalizeString(c.comuna).includes(safeQuery));
+    
+    filtered.sort((a, b) => {
+      const nameA = normalizeString(a.comuna);
+      const nameB = normalizeString(b.comuna);
+      const startsA = nameA.startsWith(safeQuery);
+      const startsB = nameB.startsWith(safeQuery);
+      if (startsA && !startsB) return -1;
+      if (!startsA && startsB) return 1;
+      return nameA.localeCompare(nameB);
+    });
+
+    setResults(filtered.slice(0, 50));
   }, [query, isOpen, comunas, value]);
 
   return (
@@ -551,12 +606,15 @@ const ComunaAutocomplete = ({ placeholder, value, onSelect, comunas }) => {
 
 export default function App() {
   const [calcMode, setCalcMode] = useState("viaje");
-  const [chargeMode, setChargeMode] = useState("money");
   
   // ================= ESTADOS CON PERSISTENCIA (LOCALSTORAGE) =================
   const [fuelType, setFuelType] = useState(() => localStorage.getItem('bencinaapp_fuel') || "93");
   const [efficiencyKml, setEfficiencyKml] = useState(() => localStorage.getItem('bencinaapp_eff') || "12");
   const [includeTolls, setIncludeTolls] = useState(() => localStorage.getItem('bencinaapp_tolls') !== "false");
+  const [recentComunas, setRecentComunas] = useState(() => JSON.parse(localStorage.getItem('bencinaapp_recent_comunas') || '[]'));
+
+  // Paginación y control Mobile
+  const [mobileStep, setMobileStep] = useState(1);
 
   // Estados temporales para el Modal de Configuración
   const [showSettingsModal, setShowSettingsModal] = useState(false);
@@ -564,7 +622,6 @@ export default function App() {
   const [tempFuel, setTempFuel] = useState(fuelType);
   const [tempTolls, setTempTolls] = useState(includeTolls);
 
-  const [inputValue, setInputValue] = useState("");
   const [distanceKm, setDistanceKm] = useState("0");
   const [isRoundTrip, setIsRoundTrip] = useState(false);
 
@@ -577,8 +634,11 @@ export default function App() {
   const [cneStations, setCneStations] = useState([]);
   const [cargaComuna, setCargaComuna] = useState("");
   const [currentStation, setCurrentStation] = useState(null);
-  const [currentPage, setCurrentPage] = useState(1);
-  const ITEMS_PER_PAGE = 4;
+  
+  // Ubicacion y Filtros
+  const [userLocation, setUserLocation] = useState(null);
+  const [sortBy, setSortBy] = useState('price'); // 'price' | 'distance'
+  const [isLocating, setIsLocating] = useState(false);
 
   const [isLoading, setIsLoading] = useState(true);
   const [isCalculatingRoute, setIsCalculatingRoute] = useState(false);
@@ -589,15 +649,75 @@ export default function App() {
   const [detectedTolls, setDetectedTolls] = useState({ total: 0, list: [] });
   const [showTollsModal, setShowTollsModal] = useState(false);
 
+  const handleSelectComuna = (c) => {
+    setCargaComuna(c);
+    setCurrentStation(null);
+    setSortBy('price'); // Al elegir manualmente, volver a ordenar por precio
+    if (c) {
+      const updatedRecents = [c, ...recentComunas.filter(rc => rc !== c)].slice(0, 3);
+      setRecentComunas(updatedRecents);
+      localStorage.setItem('bencinaapp_recent_comunas', JSON.stringify(updatedRecents));
+    }
+  };
+
+  const handleGetLocation = () => {
+    setIsLocating(true);
+    if ("geolocation" in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const lat = position.coords.latitude;
+          const lon = position.coords.longitude;
+          setUserLocation({ lat, lon });
+          
+          let closestComuna = "";
+          let minDist = Infinity;
+          cneStations.forEach(s => {
+             const d = getStraightLineDistance(lat, lon, s.lat, s.lon);
+             if(d < minDist) {
+                minDist = d;
+                closestComuna = s.comuna;
+             }
+          });
+          
+          if (closestComuna) {
+            handleSelectComuna(closestComuna);
+            setSortBy('distance');
+          }
+          setIsLocating(false);
+        },
+        (error) => {
+          console.error("Error GPS:", error);
+          setIsLocating(false);
+        },
+        { enableHighAccuracy: false, timeout: 5000, maximumAge: 0 }
+      );
+    } else {
+      setIsLocating(false);
+    }
+  };
+
   const filteredStationsCarga = React.useMemo(() => {
     if (!cargaComuna) return [];
     const now = Date.now();
     const OUTDATED_MS = 7 * 24 * 60 * 60 * 1000;
-    return cneStations
+    let list = cneStations
       .filter((s) => s.comuna === cargaComuna && getBestPrice(s.precios[fuelType]) > 0)
-      .map((s) => ({ ...s, isOutdated: s.timestampAct === 0 || now - s.timestampAct > OUTDATED_MS }))
-      .sort((a, b) => a.isOutdated === b.isOutdated ? getBestPrice(a.precios[fuelType]) - getBestPrice(b.precios[fuelType]) : a.isOutdated ? 1 : -1 );
-  }, [cneStations, cargaComuna, fuelType]);
+      .map((s) => ({ 
+          ...s, 
+          isOutdated: s.timestampAct === 0 || now - s.timestampAct > OUTDATED_MS,
+          distToUser: userLocation ? getStraightLineDistance(userLocation.lat, userLocation.lon, s.lat, s.lon) : null
+      }));
+
+    list.sort((a, b) => {
+      if (a.isOutdated !== b.isOutdated) return a.isOutdated ? 1 : -1;
+      if (sortBy === 'distance' && a.distToUser !== null && b.distToUser !== null) {
+         return a.distToUser - b.distToUser;
+      }
+      return getBestPrice(a.precios[fuelType]) - getBestPrice(b.precios[fuelType]);
+    });
+    
+    return list;
+  }, [cneStations, cargaComuna, fuelType, sortBy, userLocation]);
 
   // Al abrir la configuración, pre-carga los valores actuales
   useEffect(() => {
@@ -621,11 +741,10 @@ export default function App() {
     setShowSettingsModal(false);
   };
 
-  // Al cambiar de comuna o combustible en la calculadora, reseteamos la selección.
+  // Al cambiar el combustible se mantiene la comuna pero se resetea estación
   useEffect(() => { 
-    setCurrentPage(1); 
     setCurrentStation(null);
-  }, [cargaComuna, fuelType]);
+  }, [fuelType]);
 
   useEffect(() => {
     const handleMessage = (event) => {
@@ -634,8 +753,6 @@ export default function App() {
         const clickedStation = filteredStationsCarga.find((s) => s.id === clickedId);
         if (clickedStation) {
           setCurrentStation(clickedStation);
-          const stationIndex = filteredStationsCarga.findIndex((s) => s.id === clickedId);
-          if (stationIndex !== -1) setCurrentPage(Math.floor(stationIndex / ITEMS_PER_PAGE) + 1);
         }
       }
     };
@@ -645,12 +762,12 @@ export default function App() {
 
   useEffect(() => {
     if (calcMode === "carga" && cargaComuna && filteredStationsCarga.length > 0) {
-      const html = generateStationsMapHtml(filteredStationsCarga, currentStation);
+      const html = generateStationsMapHtml(filteredStationsCarga, currentStation, userLocation);
       const url = URL.createObjectURL(new Blob([html], { type: "text/html" }));
       setStationsMapUrl(url);
       return () => URL.revokeObjectURL(url);
     } else { setStationsMapUrl(""); }
-  }, [cargaComuna, fuelType, currentStation, filteredStationsCarga, calcMode]);
+  }, [cargaComuna, fuelType, currentStation, filteredStationsCarga, calcMode, userLocation]);
 
   useEffect(() => {
     if (calcMode === "viaje" && originCity && destCity && parseFloat(distanceKm) >= 0) {
@@ -683,15 +800,10 @@ export default function App() {
       ];
 
       try {
-        console.log(`[Ruta] 📡 Iniciando carrera de APIs (${endpoints.length} endpoints) para ruta: ${originCity.name} -> ${destCity.name}`);
-        
-        // 🔥 MAGIA AQUÍ: Disparamos todas las APIs al MISMO TIEMPO y nos quedamos con la que responda primero
         const routeResult = await Promise.any(
           endpoints.map(async (ep) => {
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 segundos max por petición
-            const startTime = Date.now();
-            console.log(`[Ruta] 📡 Intentando con ${ep.type.toUpperCase()}: ${ep.url}...`);
+            const timeoutId = setTimeout(() => controller.abort(), 15000); 
 
             try {
               if (ep.type === "ors") {
@@ -706,17 +818,14 @@ export default function App() {
                 const contentType = res.headers.get("content-type");
                 if (contentType && contentType.includes("text/html")) throw new Error("Recibido HTML en vez de JSON");
 
-                if (!res.ok) throw new Error(`HTTP ${res.status} - ${res.statusText}`);
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 const data = await res.json();
                 
-                if (!data.features || data.features.length === 0) {
-                    throw new Error("ORS no devolvió rutas válidas (features is undefined)");
-                }
+                if (!data.routes || data.routes.length === 0) throw new Error("ORS no devolvió rutas");
 
-                console.log(`[Ruta] ✅ ORS respondió rápido en ${Date.now() - startTime}ms`);
                 return {
-                  geo: { coordinates: data.features[0].geometry.coordinates },
-                  dist: data.features[0].properties.summary.distance / 1000
+                  geo: { coordinates: decodePolyline(data.routes[0].geometry) },
+                  dist: data.routes[0].summary.distance / 1000
                 };
               } else {
                 const res = await fetch(`${ep.url}/${originCity.lon},${originCity.lat};${destCity.lon},${destCity.lat}?overview=simplified&geometries=geojson`, { signal: controller.signal });
@@ -724,55 +833,34 @@ export default function App() {
                 const contentType = res.headers.get("content-type");
                 if (contentType && contentType.includes("text/html")) throw new Error("Recibido HTML en vez de JSON");
 
-                if (!res.ok) throw new Error(`HTTP ${res.status} - ${res.statusText}`);
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 const data = await res.json();
                 if (!data.routes || data.routes.length === 0) throw new Error("Sin rutas en la respuesta");
 
-                console.log(`[Ruta] ✅ OSRM respondió rápido en ${Date.now() - startTime}ms`);
                 return {
                   geo: data.routes[0].geometry,
                   dist: data.routes[0].distance / 1000
                 };
               }
-            } catch (err) {
-              console.warn(`[Ruta] ❌ Falló ${ep.type.toUpperCase()} (${ep.url}). Razón: ${err.message} | Tiempo invertido: ${Date.now() - startTime}ms`);
-              throw err; // Re-throw para que Promise.any la ignore y siga esperando las demás
             } finally {
               clearTimeout(timeoutId);
             }
           })
         );
 
-        // Si alguna responde rápido, se ejecuta esto inmediatamente
         setDistanceKm(routeResult.dist.toFixed(1));
         setRouteGeometry(routeResult.geo);
         const tolls = detectTollsInRoute(routeResult.geo);
         setDetectedTolls(tolls);
 
       } catch (err) {
-        // 🔥 FALLBACK DEFINITIVO (Si TODAS fallan o demoran más de 6s)
-        console.error("⚠️ [Ruta] TODOS los servidores públicos de mapas fallaron o fueron abortados. Usando fallback directo en línea recta.", err);
-
-        const fallbackDist = calculateHaversineDistance(
-          originCity.lat,
-          originCity.lon,
-          destCity.lat,
-          destCity.lon
-        );
-
-        const fakeGeometry = {
-          coordinates: [
-            [originCity.lon, originCity.lat],
-            [destCity.lon, destCity.lat]
-          ]
-        };
+        const fallbackDist = calculateHaversineDistance(originCity.lat, originCity.lon, destCity.lat, destCity.lon);
+        const fakeGeometry = { coordinates: [ [originCity.lon, originCity.lat], [destCity.lon, destCity.lat] ] };
 
         setDistanceKm(fallbackDist.toString());
         setRouteGeometry(fakeGeometry);
-
         const tolls = detectTollsInRoute(fakeGeometry, true);
         setDetectedTolls(tolls);
-
         setRouteError(true);
       }
 
@@ -785,12 +873,11 @@ export default function App() {
     const fetchPrecios = async () => {
       setIsLoading(true);
       try {
-        console.log("[CNE] 📡 Iniciando conexión con API CNE...");
+        const isLocalhost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+        const baseUrl = isLocalhost ? "/api-cne" : "https://api.cne.cl";
         
-        // 🔥 Corrección CNE: Evitamos el proxy local en entornos que no lo soportan (como Canvas)
-        
-        const loginUrl = `/api-cne/api/login`;
-        const estacionesUrl = `/api-cne/api/v4/estaciones`;
+        const loginUrl = `${baseUrl}/api/login`;
+        const estacionesUrl = `${baseUrl}/api/v4/estaciones`;
 
         const loginRes = await fetch(loginUrl, {
           method: "POST",
@@ -798,30 +885,20 @@ export default function App() {
           body: "email=nicolas0645@gmail.com&password=12qwaszxL",
         });
 
-        if (!loginRes.ok) {
-           throw new Error(`Error en Login. Status: ${loginRes.status} ${loginRes.statusText}`);
-        }
-
+        if (!loginRes.ok) throw new Error(`Error en Login.`);
         const contentType = loginRes.headers.get("content-type");
-        if (contentType && contentType.includes("text/html")) {
-           throw new Error("El servidor devolvió HTML. Proxy ausente en este entorno.");
-        }
+        if (contentType && contentType.includes("text/html")) throw new Error("El servidor devolvió HTML. Proxy ausente.");
 
         const loginData = await loginRes.json();
         const token = loginData.data?.token || loginData.token;
 
         if (token) {
-          console.log("[CNE] 🔑 Token de seguridad obtenido correctamente. Descargando estaciones...");
           setAuthStatus("success");
-          
           const stRes = await fetch(estacionesUrl, {
             headers: { Token: token, Authorization: `Bearer ${token}`, Accept: "application/json" },
           });
 
-          if (!stRes.ok) {
-            console.error(`[CNE] ❌ Error descargando datos de estaciones. Status: ${stRes.status}`);
-            throw new Error("Error HTTP al obtener estaciones");
-          }
+          if (!stRes.ok) throw new Error("Error HTTP al obtener estaciones");
 
           const stData = await stRes.json();
           const raw = Array.isArray(stData) ? stData : stData.data || stData.estaciones || [];
@@ -906,129 +983,39 @@ export default function App() {
           });
           
           const filteredList = cleanList.filter((s) => s.lat !== 0 && s.lon !== 0 && s.comuna !== "Desconocida");
-          console.log(`[CNE] ✅ Datos procesados y purgados correctamente. Total estaciones válidas cargadas en memoria: ${filteredList.length}`);
           setCneStations(filteredList);
         } else {
-          console.error("[CNE] ❌ Falló la autenticación. No se recibió token en la respuesta de Login:", loginData);
           setAuthStatus("error");
         }
       } catch (e) {
-        console.warn("[CNE] ⚠️ Aviso: No se pudo conectar a la API (probablemente por bloqueo CORS del navegador). Activando Modo Demo.");
         setAuthStatus("demo");
-        
-        // Datos falsos (MOCK) para que la app no muera en entornos sin proxy (como Canvas)
         const MOCK_STATIONS = [
           {
-            id: "m1",
-            comuna: "Santiago",
-            distribuidor: "Copec",
-            direccion: "Av. Providencia 123",
-            lat: -33.4489,
-            lon: -70.6693,
-            precios: {
-              93: { asistido: 1320, autoservicio: 1300 },
-              95: { asistido: 1360 },
-              97: { asistido: 1400 },
-              diesel: { asistido: 1050 },
-              parafina: { asistido: 950 },
-            },
-            actualizacion: "Hoy",
-            regionId: "RM",
-            regionName: "Región Metropolitana",
-            timestampAct: Date.now(),
+            id: "m1", comuna: "Santiago", distribuidor: "Copec", direccion: "Av. Providencia 123",
+            lat: -33.4489, lon: -70.6693,
+            precios: { 93: { asistido: 1320, autoservicio: 1300 }, 95: { asistido: 1360 }, 97: { asistido: 1400 }, diesel: { asistido: 1050 }, parafina: { asistido: 950 } },
+            actualizacion: "Hoy", regionId: "RM", regionName: "Región Metropolitana", timestampAct: Date.now(),
           },
           {
-            id: "m2",
-            comuna: "Santiago",
-            distribuidor: "Shell",
-            direccion: "Alameda 456",
-            lat: -33.44,
-            lon: -70.65,
-            precios: {
-              93: { asistido: 1310 },
-              95: { asistido: 1350 },
-              97: { asistido: 1390 },
-              diesel: { asistido: 1040 },
-              parafina: { asistido: 940 },
-            },
-            actualizacion: "Hoy",
-            regionId: "RM",
-            regionName: "Región Metropolitana",
-            timestampAct: Date.now(),
+            id: "m2", comuna: "Santiago", distribuidor: "Shell", direccion: "Alameda 456",
+            lat: -33.44, lon: -70.65,
+            precios: { 93: { asistido: 1310 }, 95: { asistido: 1350 }, 97: { asistido: 1390 }, diesel: { asistido: 1040 }, parafina: { asistido: 940 } },
+            actualizacion: "Hoy", regionId: "RM", regionName: "Región Metropolitana", timestampAct: Date.now(),
           },
           {
-            id: "m3",
-            comuna: "Viña del Mar",
-            distribuidor: "Petrobras",
-            direccion: "Av. Libertad 456",
-            lat: -33.0153,
-            lon: -71.5505,
-            precios: {
-              93: { asistido: 1310 },
-              95: { asistido: 1350 },
-              97: { asistido: 1390 },
-              diesel: { asistido: 1040 },
-              parafina: { asistido: 940 },
-            },
-            actualizacion: "Hoy",
-            regionId: "V",
-            regionName: "Valparaíso",
-            timestampAct: Date.now(),
+            id: "m3", comuna: "Viña del Mar", distribuidor: "Petrobras", direccion: "Av. Libertad 456",
+            lat: -33.0153, lon: -71.5505,
+            precios: { 93: { asistido: 1310 }, 95: { asistido: 1350 }, 97: { asistido: 1390 }, diesel: { asistido: 1040 }, parafina: { asistido: 940 } },
+            actualizacion: "Hoy", regionId: "V", regionName: "Valparaíso", timestampAct: Date.now(),
           },
           {
-            id: "m4",
-            comuna: "Concepción",
-            distribuidor: "Copec",
-            direccion: "Av. Los Carrera 789",
-            lat: -36.8201,
-            lon: -73.0444,
-            precios: {
-              93: { asistido: 1330, autoservicio: 1315 },
-              95: { asistido: 1370 },
-              diesel: { asistido: 1060 },
-            },
-            actualizacion: "Hoy",
-            regionId: "VIII",
-            regionName: "Biobío",
-            timestampAct: Date.now(),
-          },
-          {
-            id: "m5",
-            comuna: "Temuco",
-            distribuidor: "Shell",
-            direccion: "Caupolicán 1010",
-            lat: -38.7359,
-            lon: -72.5904,
-            precios: {
-              93: { asistido: 1340 },
-              95: { asistido: 1380 },
-              diesel: { asistido: 1070 },
-            },
-            actualizacion: "Hoy",
-            regionId: "IX",
-            regionName: "Araucanía",
-            timestampAct: Date.now(),
-          },
-          {
-            id: "m6",
-            comuna: "Antofagasta",
-            distribuidor: "Petrobras",
-            direccion: "Av. Balmaceda 2020",
-            lat: -23.6500,
-            lon: -70.4000,
-            precios: {
-              93: { asistido: 1350 },
-              95: { asistido: 1390 },
-              diesel: { asistido: 1080 },
-            },
-            actualizacion: "Hoy",
-            regionId: "II",
-            regionName: "Antofagasta",
-            timestampAct: Date.now(),
+            id: "m5", comuna: "Temuco", distribuidor: "Shell", direccion: "Caupolicán 1010",
+            lat: -38.7359, lon: -72.5904,
+            precios: { 93: { asistido: 1340 }, 95: { asistido: 1380 }, diesel: { asistido: 1070 } },
+            actualizacion: "Hoy", regionId: "IX", regionName: "Araucanía", timestampAct: Date.now(),
           }
         ];
         setCneStations(MOCK_STATIONS);
-        
       } finally {
         setIsLoading(false);
       }
@@ -1067,9 +1054,7 @@ export default function App() {
   }, [cneStations]);
 
   let pricePerLiter = 0;
-  if (calcMode === "carga" && currentStation) {
-    pricePerLiter = getBestPrice(currentStation.precios[fuelType]);
-  } else if (calcMode === "viaje" && originCity) {
+  if (calcMode === "viaje" && originCity) {
     const regionStations = cneStations.filter((s) => s.regionId === originCity.regionId && getBestPrice(s.precios[fuelType]) > 0);
     if (regionStations.length > 0) {
       const sum = regionStations.reduce((acc, s) => acc + getBestPrice(s.precios[fuelType]), 0);
@@ -1077,7 +1062,6 @@ export default function App() {
     }
   }
 
-  const numInput = parseFloat(inputValue) || 0;
   const baseDist = parseFloat(distanceKm) || 0;
   const displayDistanceKm = isRoundTrip ? (baseDist * 2).toFixed(1) : baseDist.toFixed(1);
   const eff = parseFloat(efficiencyKml) || 1;
@@ -1085,14 +1069,7 @@ export default function App() {
   const litersNeeded = eff > 0 ? parseFloat(displayDistanceKm) / eff : 0;
   const bencinaTotal = litersNeeded * pricePerLiter;
   const peajeTotal = includeTolls ? (detectedTolls.total * (isRoundTrip ? 2 : 1)) : 0;
-
-  let resultValue = 0;
-  if (calcMode === "carga") {
-    if (chargeMode === "liters") { resultValue = numInput * pricePerLiter; } 
-    else { resultValue = pricePerLiter > 0 ? numInput / pricePerLiter : 0; }
-  } else if (calcMode === "viaje") {
-    resultValue = bencinaTotal + peajeTotal;
-  }
+  const resultValue = bencinaTotal + peajeTotal;
 
   function formatCLP(value) {
     const safeValue = isNaN(value) || !isFinite(value) ? 0 : value;
@@ -1107,89 +1084,134 @@ export default function App() {
 
   const fuelOptionsCarga = ["93", "95", "97", "diesel", "parafina"];
 
-  const indexOfLastItem = currentPage * ITEMS_PER_PAGE;
-  const indexOfFirstItem = indexOfLastItem - ITEMS_PER_PAGE;
-  const currentStationsPage = filteredStationsCarga.slice(indexOfFirstItem, indexOfLastItem);
-  const totalPages = Math.ceil(filteredStationsCarga.length / ITEMS_PER_PAGE);
-
   // --- COMPONENTES PARA PANELES SEPARADOS EN DESKTOP ---
   
   const CargaMainContent = (
     cargaComuna && filteredStationsCarga.length > 0 && (
-      <div className="space-y-4 animate-in fade-in duration-500 mx-6 lg:mx-0 flex flex-col h-full pb-6 lg:pb-0">
-        <div className="flex items-center justify-between ml-2 shrink-0">
-           <h3 className="text-sm font-extrabold text-slate-800 uppercase tracking-wide">Estaciones</h3>
-           <span className="text-[10px] font-bold text-slate-500 bg-slate-200 px-2 py-0.5 rounded-full">{filteredStationsCarga.length} resultados</span>
+      <div className="flex flex-col h-full w-full animate-in fade-in duration-500 overflow-hidden space-y-4">
+        {/* Title */}
+        <div className="flex items-center justify-between shrink-0 lg:pt-0 pt-2">
+           <div className="flex items-center gap-2">
+              <h3 className="text-sm font-extrabold text-slate-800 uppercase tracking-wide">Estaciones</h3>
+              <span className="text-[10px] font-bold text-slate-500 bg-slate-200 px-2 py-0.5 rounded-full">{filteredStationsCarga.length}</span>
+           </div>
+           
+           {userLocation && (
+             <div className="flex bg-slate-200 p-0.5 rounded-lg">
+               <button onClick={() => setSortBy('price')} className={`text-[10px] font-bold px-2 py-1 rounded-md transition-colors ${sortBy === 'price' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500'}`}>Precio</button>
+               <button onClick={() => setSortBy('distance')} className={`text-[10px] font-bold px-2 py-1 rounded-md transition-colors ${sortBy === 'distance' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500'}`}>Cercanía</button>
+             </div>
+           )}
         </div>
 
-        <div className="w-full h-48 lg:flex-1 lg:min-h-[300px] shrink-0 rounded-[2rem] overflow-hidden shadow-sm border-[6px] border-white relative bg-slate-200">
+        {/* MAPA FIJO */}
+        <div className="w-full h-[30vh] lg:h-[40%] shrink-0 rounded-[2rem] overflow-hidden shadow-sm border-[6px] border-white relative bg-slate-200">
           {stationsMapUrl ? (
             <iframe src={stationsMapUrl} title="Mapa Estaciones" width="100%" height="100%" style={{ border: 0 }} sandbox="allow-scripts allow-same-origin" />
           ) : (
             <div className="absolute inset-0 flex items-center justify-center text-slate-400"><Loader2 className="w-6 h-6 animate-spin" /></div>
           )}
-          <div className="absolute top-3 left-3 bg-white/90 backdrop-blur-sm text-[10px] font-bold px-3 py-1.5 rounded-xl shadow-sm text-slate-700">Toca un pin para verla</div>
+          <div className="absolute top-3 left-3 bg-white/90 backdrop-blur-sm text-[10px] font-bold px-3 py-1.5 rounded-xl shadow-sm text-slate-700 pointer-events-none">Toca un pin para verla</div>
         </div>
 
-        <div className="flex flex-col gap-3 flex-1 lg:overflow-y-auto no-scrollbar lg:pr-2">
-          {currentStationsPage.map((station, idx) => {
-            const isSelected = currentStation?.id === station.id;
-            const isCheapest = currentPage === 1 && idx === 0 && !station.isOutdated;
-            const pObj = station.precios[fuelType];
-            const bestPrice = getBestPrice(pObj);
-            const hasAuto = pObj?.autoservicio > 0;
-            const hasAsis = pObj?.asistido > 0;
+        {/* LISTA CON SCROLL INTERNO */}
+        <div className="flex-1 overflow-y-auto no-scrollbar pb-6 lg:pb-0 lg:pr-2">
+          <div className="flex flex-col gap-3">
+            {filteredStationsCarga.map((station, idx) => {
+              const isSelected = currentStation?.id === station.id;
+              const isCheapest = idx === 0 && !station.isOutdated && sortBy === 'price';
+              const pObj = station.precios[fuelType];
+              const bestPrice = getBestPrice(pObj);
 
-            return (
-              <div key={station.id} onClick={() => setCurrentStation(station)} className={`w-full shrink-0 flex items-center justify-between p-4 rounded-[1.5rem] cursor-pointer transition-all duration-300 ${isSelected ? "bg-slate-900 shadow-xl scale-[1.02]" : "bg-white shadow-[0_4px_20px_rgb(0,0,0,0.03)] hover:shadow-md"}`}>
-                <div className="flex flex-col flex-1 overflow-hidden pr-2">
-                  <div className="flex items-center space-x-2 mb-1">
-                    {station.logo ? (<img src={station.logo} alt={station.distribuidor} className="h-6 w-6 object-contain rounded-full bg-white p-0.5" onError={(e) => { e.target.style.display = "none"; e.target.nextSibling.style.display = "block"; }} />) : null}
-                    <Fuel className={`w-5 h-5 ${isSelected ? 'text-slate-300' : 'text-slate-400'}`} style={{ display: station.logo ? "none" : "block" }} />
-                    <span className={`font-black text-sm truncate ${isSelected ? 'text-white' : 'text-slate-800'}`}>{station.distribuidor}</span>
-                    {isCheapest && <span className="text-[10px] font-extrabold text-emerald-800 bg-emerald-400/20 rounded-full px-1.5 py-0.5 ml-1 shrink-0 flex items-center"><TrendingUp className="w-2.5 h-2.5 mr-0.5" /> Top 1</span>}
-                  </div>
-                  <span className={`text-xs truncate font-medium ${isSelected ? 'text-slate-400' : 'text-slate-500'}`} title={station.direccion}>{station.direccion}</span>
-                  <div className="flex items-center mt-2">
-                    <span className={`text-[10px] flex items-center font-bold ${station.isOutdated ? "text-red-400" : isSelected ? "text-slate-400" : "text-slate-400"}`}>
-                      {station.isOutdated ? <AlertCircle className="w-3 h-3 mr-1" /> : <Clock className="w-3 h-3 mr-1" />}
-                      {station.isOutdated ? "Desactualizado" : station.actualizacion ? station.actualizacion.split(" ")[0] : "--"}
-                    </span>
-                  </div>
-                </div>
-                <div className="flex flex-col items-end justify-center shrink-0 pl-3 border-l border-white/10 min-w-[80px]">
-                  <span className={`text-2xl font-black tracking-tight ${isSelected ? 'text-white' : 'text-slate-900'}`}>{formatCLP(bestPrice)}</span>
-                  {hasAuto && hasAsis && pObj.autoservicio !== pObj.asistido ? (
-                    <div className={`text-[9px] font-bold mt-1 flex flex-col items-end leading-tight ${isSelected ? 'text-slate-400' : 'text-slate-400'}`}>
-                      <span className={isSelected ? 'text-blue-300' : 'text-blue-500'}>Auto: {formatCLP(pObj.autoservicio)}</span>
-                      <span>Asis: {formatCLP(pObj.asistido)}</span>
+              return (
+                <div key={station.id} onClick={() => setCurrentStation(isSelected ? null : station)} className={`w-full shrink-0 flex flex-col p-4 rounded-[1.5rem] cursor-pointer transition-all duration-300 transform-gpu ${isSelected ? "bg-slate-900 shadow-xl ring-4 ring-slate-200" : "bg-white shadow-[0_4px_20px_rgb(0,0,0,0.03)] hover:shadow-md"}`}>
+                  <div className="flex items-center justify-between">
+                    <div className="flex flex-col flex-1 overflow-hidden pr-2">
+                      <div className="flex items-center space-x-2 mb-1">
+                        {station.logo ? (<img src={station.logo} alt={station.distribuidor} className="h-6 w-6 object-contain rounded-full bg-white p-0.5" onError={(e) => { e.target.style.display = "none"; e.target.nextSibling.style.display = "block"; }} />) : null}
+                        <Fuel className={`w-5 h-5 ${isSelected ? 'text-slate-300' : 'text-slate-400'}`} style={{ display: station.logo ? "none" : "block" }} />
+                        <span className={`font-black text-sm truncate ${isSelected ? 'text-white' : 'text-slate-800'}`}>{station.distribuidor}</span>
+                        {isCheapest && <span className="text-[10px] font-extrabold text-emerald-800 bg-emerald-400/20 rounded-full px-1.5 py-0.5 ml-1 shrink-0 flex items-center"><TrendingUp className="w-2.5 h-2.5 mr-0.5" /> Top 1</span>}
+                      </div>
+                      <span className={`text-xs truncate font-medium ${isSelected ? 'text-slate-400' : 'text-slate-500'}`} title={station.direccion}>{station.direccion}</span>
+                      <div className="flex items-center mt-2">
+                        <span className={`text-[10px] flex items-center font-bold ${station.isOutdated ? "text-red-400" : isSelected ? "text-slate-400" : "text-slate-400"}`}>
+                          {station.isOutdated ? <AlertCircle className="w-3 h-3 mr-1" /> : <Clock className="w-3 h-3 mr-1" />}
+                          {station.isOutdated ? "Desactualizado" : station.actualizacion ? station.actualizacion.split(" ")[0] : "--"}
+                        </span>
+                        {station.distToUser !== null && sortBy === 'distance' && (
+                          <span className="text-[10px] font-extrabold text-blue-600 bg-blue-100/80 px-2 py-0.5 rounded-full ml-2">
+                            A {station.distToUser.toFixed(1)} km
+                          </span>
+                        )}
+                      </div>
                     </div>
-                  ) : hasAuto ? (
-                    <span className={`text-[9px] font-bold uppercase mt-1 ${isSelected ? 'text-blue-300' : 'text-blue-500'}`}>Autoservicio</span>
-                  ) : hasAsis ? (
-                    <span className={`text-[9px] font-bold uppercase mt-1 ${isSelected ? 'text-slate-400' : 'text-slate-400'}`}>Asistido</span>
-                  ) : null}
+                    <div className="flex flex-col items-end justify-center shrink-0 pl-3 border-l border-white/10 min-w-[80px]">
+                      <span className={`text-2xl font-black tracking-tight ${isSelected ? 'text-white' : 'text-slate-900'}`}>{formatCLP(bestPrice)}</span>
+                      <span className={`text-[9px] font-bold mt-1 uppercase ${isSelected ? 'text-blue-300' : 'text-slate-400'}`}>
+                        {fuelType === "diesel" ? "Diesel" : fuelType === "parafina" ? "Parafina" : `${fuelType} Octanos`}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* --- SECCIÓN DESPLEGABLE CON TODOS LOS PRECIOS --- */}
+                  <div className={`grid transition-all duration-500 ease-in-out ${isSelected ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}>
+                    <div className="overflow-hidden">
+                      <div className="pt-4 mt-4 border-t border-slate-700/30 flex flex-col gap-3">
+                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Todos los precios de esta estación</span>
+                        <div className="grid grid-cols-2 gap-2">
+                          {["93", "95", "97", "diesel", "parafina"].map((t) => {
+                            const p = station.precios[t];
+                            const auto = p?.autoservicio || 0;
+                            const asis = p?.asistido || 0;
+                            const bestP = getBestPrice(p);
+                            
+                            if (bestP === 0) return null;
+                            
+                            const isThisFuelSelected = t === fuelType;
+                            
+                            return (
+                              <div key={t} className={`rounded-xl p-3 flex flex-col justify-center border transition-colors ${isThisFuelSelected ? 'bg-blue-600 border-blue-500' : 'bg-slate-800 border-slate-700'}`}>
+                                <span className={`text-[10px] font-bold uppercase mb-1 ${isThisFuelSelected ? 'text-blue-100' : 'text-slate-400'}`}>
+                                  {t === "diesel" ? "Diesel" : t === "parafina" ? "Parafina" : `${t} Octanos`}
+                                </span>
+                                {auto > 0 && asis > 0 && auto !== asis ? (
+                                  <div className="flex flex-col">
+                                    <span className="text-xs font-black text-white" title="Autoservicio">Auto: {formatCLP(auto)}</span>
+                                    <span className={`text-[10px] font-bold ${isThisFuelSelected ? 'text-blue-200' : 'text-slate-400'}`} title="Asistido">Asis: {formatCLP(asis)}</span>
+                                  </div>
+                                ) : (
+                                  <span className="text-sm font-black text-white">{formatCLP(bestP)}</span>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                        <a 
+                          href={`https://www.google.com/maps/dir/?api=1&destination=${station.lat},${station.lon}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()} 
+                          className="mt-2 w-full bg-blue-500 hover:bg-blue-400 text-white rounded-xl py-3 text-[13px] font-extrabold flex items-center justify-center gap-2 shadow-md transition-colors"
+                        >
+                          <MapPin className="w-4 h-4" /> Cómo llegar
+                        </a>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
-        
-        {totalPages > 1 && (
-          <div className="flex justify-between items-center mt-4 px-2 shrink-0">
-            <button onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} disabled={currentPage === 1} className="w-10 h-10 flex items-center justify-center bg-white text-slate-800 rounded-full shadow-sm disabled:opacity-50 transition-active active:scale-95"><ChevronLeft className="w-5 h-5" /></button>
-            <span className="text-xs font-bold text-slate-500">Página {currentPage} de {totalPages}</span>
-            <button onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="w-10 h-10 flex items-center justify-center bg-white text-slate-800 rounded-full shadow-sm disabled:opacity-50 transition-active active:scale-95"><ChevronRight className="w-5 h-5" /></button>
+              );
+            })}
           </div>
-        )}
+        </div>
       </div>
     )
   );
 
   const ViajeMainContent = (
     originCity && destCity && (
-      <div className="mx-6 lg:mx-0 animate-in fade-in slide-in-from-bottom-4 duration-500 flex flex-col h-full pb-6 lg:pb-0">
-        <div className="flex items-center justify-between mb-3 px-2 shrink-0">
+      <div className="flex flex-col h-full w-full animate-in fade-in slide-in-from-bottom-4 duration-500 overflow-hidden space-y-3">
+        <div className="flex items-center justify-between shrink-0">
           <span className="text-sm font-extrabold text-slate-800 uppercase tracking-wide">Ruta calculada</span>
           {isCalculatingRoute ? (
             <div className="flex items-center text-blue-600 text-xs font-bold bg-blue-50 px-2 py-1 rounded-lg">
@@ -1203,13 +1225,13 @@ export default function App() {
         </div>
         
         {routeError && (
-          <div className="flex items-center text-[10px] text-amber-700 bg-amber-50 p-2.5 rounded-xl border border-amber-200 mb-3 shrink-0">
+          <div className="flex items-center text-[10px] text-amber-700 bg-amber-50 p-2.5 rounded-xl border border-amber-200 shrink-0">
             <AlertCircle className="w-4 h-4 mr-2 shrink-0" />
             Servidores GPS públicos saturados. Mostrando estimación de ruta en línea recta.
           </div>
         )}
 
-        <div className="relative h-48 lg:flex-1 lg:min-h-[400px] shrink-0 rounded-[2rem] overflow-hidden shadow-sm border-[6px] border-white bg-slate-200">
+        <div className="flex-1 w-full rounded-[2rem] overflow-hidden shadow-sm border-[6px] border-white bg-slate-200 relative">
           {isCalculatingRoute ? (
             <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-400 bg-slate-100">
               <MapIcon className="w-8 h-8 mb-2 opacity-50" />
@@ -1231,31 +1253,19 @@ export default function App() {
     )
   );
 
-  const FooterContent = (
+  const FooterContentViaje = (
     <>
-      {calcMode === "carga" && currentStation && (
-        <div className="bg-slate-50 p-3 rounded-2xl mb-4 border border-slate-100 flex gap-2">
-          <div className="relative flex-[2]">
-            <input type="number" min="0" step={chargeMode === "liters" ? "0.1" : "1000"} value={inputValue} onChange={(e) => setInputValue(e.target.value)} className="w-full p-3 pl-4 pr-2 text-lg border border-slate-200 rounded-xl focus:ring-2 focus:ring-slate-900 outline-none font-black text-slate-900 bg-white" placeholder="0" />
-          </div>
-          <select value={chargeMode} onChange={(e) => { setChargeMode(e.target.value); setInputValue(""); }} className="flex-1 p-3 text-sm font-bold bg-slate-900 text-white rounded-xl outline-none cursor-pointer appearance-none text-center" >
-            <option value="money">Pesos ($)</option>
-            <option value="liters">Litros (L)</option>
-          </select>
-        </div>
-      )}
-
       <div className="flex justify-between items-end mb-5">
         <div className="flex flex-col">
           <span className="text-[13px] font-bold text-slate-500 uppercase tracking-wider mb-1">
-            {calcMode === "carga" ? chargeMode === "money" ? "Recibirás aprox." : "Costo estimado" : "Costo Total Viaje"}
+            Costo Total Viaje
           </span>
           <span className="text-[2.5rem] font-black text-slate-900 tracking-tight leading-none">
-            {calcMode === "carga" && chargeMode === "money" ? `${resultValue.toFixed(1)} Lts` : formatCLP(resultValue)}
+            {formatCLP(resultValue)}
           </span>
         </div>
         
-        {calcMode === "viaje" && resultValue > 0 && (
+        {resultValue > 0 && (
           <div className="flex flex-col items-end gap-1.5 pb-1">
             <span className="text-[11px] font-bold text-slate-400 flex items-center bg-slate-50 px-2 py-0.5 rounded-md"><DollarSign className="w-3 h-3 mr-0.5 text-slate-400" /> Ref: {formatCLP(pricePerLiter)}/L</span>
             <span className="text-[11px] font-bold text-slate-400 flex items-center bg-slate-50 px-2 py-0.5 rounded-md"><Droplets className="w-3 h-3 mr-1 text-slate-400" /> {formatCLP(bencinaTotal)}</span>
@@ -1264,22 +1274,14 @@ export default function App() {
         )}
       </div>
 
-      {calcMode === "viaje" && (
-        <button 
-          onClick={() => { if(detectedTolls.list.length > 0 && includeTolls) setShowTollsModal(true) }} 
-          disabled={detectedTolls.list.length === 0 || !includeTolls}
-          className="w-full bg-slate-900 text-white rounded-[1.25rem] py-4 font-extrabold text-[15px] flex items-center justify-center gap-2 shadow-xl shadow-slate-900/20 active:scale-[0.98] transition-all disabled:opacity-50 disabled:active:scale-100"
-        >
-          <Ticket className="w-5 h-5" />
-          {detectedTolls.list.length > 0 ? (includeTolls ? 'Ver desglose de peajes' : 'Peajes omitidos') : 'Sin peajes en la ruta'}
-        </button>
-      )}
-
-      {calcMode === "carga" && !currentStation && (
-         <div className="w-full bg-slate-100 text-slate-400 rounded-[1.25rem] py-4 font-extrabold text-[15px] flex items-center justify-center gap-2 text-center">
-            Selecciona una estación para simular
-         </div>
-      )}
+      <button 
+        onClick={() => { if(detectedTolls.list.length > 0 && includeTolls) setShowTollsModal(true) }} 
+        disabled={detectedTolls.list.length === 0 || !includeTolls}
+        className="w-full bg-slate-900 text-white rounded-[1.25rem] py-4 font-extrabold text-[15px] flex items-center justify-center gap-2 shadow-xl shadow-slate-900/20 active:scale-[0.98] transition-all disabled:opacity-50 disabled:active:scale-100"
+      >
+        <Ticket className="w-5 h-5" />
+        {detectedTolls.list.length > 0 ? (includeTolls ? 'Ver desglose de peajes' : 'Peajes omitidos') : 'Sin peajes en la ruta'}
+      </button>
     </>
   );
 
@@ -1296,8 +1298,8 @@ export default function App() {
     <div className="bg-slate-100 flex items-center justify-center font-sans text-slate-800 min-h-screen sm:p-6 lg:p-8">
       <div className="w-full max-w-md lg:max-w-5xl bg-[#f8fafc] sm:rounded-[3rem] lg:rounded-[2rem] sm:shadow-2xl flex flex-col lg:flex-row h-[100dvh] sm:h-[850px] lg:h-[80vh] lg:min-h-[700px] overflow-hidden relative">
         
-        {/* PANEL IZQUIERDO (CONTROLES) */}
-        <div className="flex flex-col w-full lg:w-[420px] h-full relative z-20 bg-[#f8fafc] lg:border-r border-slate-200 shrink-0">
+        {/* ================= PANEL IZQUIERDO (CONTROLES) ================= */}
+        <div className={`flex flex-col w-full lg:w-[420px] h-full relative z-20 bg-[#f8fafc] lg:border-r border-slate-200 shrink-0 ${mobileStep === 2 ? 'hidden lg:flex' : 'flex'}`}>
            
           {/* HEADER LIMPIO TIPO APP */}
           <div className="flex items-center justify-between px-6 pt-8 pb-4 shrink-0 bg-[#f8fafc]">
@@ -1316,13 +1318,13 @@ export default function App() {
           {/* SWITCHER DE MODOS */}
           <div className="mx-6 p-1.5 bg-slate-200/60 rounded-[1.25rem] flex shrink-0 mb-2">
             <button
-              onClick={() => { setCalcMode("viaje"); setInputValue(""); if (fuelType === "parafina") setFuelType("93"); }}
+              onClick={() => { setCalcMode("viaje"); setMobileStep(1); if (fuelType === "parafina") setFuelType("93"); }}
               className={`flex-1 flex items-center justify-center gap-2 py-3 text-sm font-bold rounded-xl transition-all duration-300 ${calcMode === "viaje" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
             >
               <Route className="w-4 h-4" /> Viaje
             </button>
             <button
-              onClick={() => { setCalcMode("carga"); setInputValue(""); }}
+              onClick={() => { setCalcMode("carga"); setMobileStep(1); }}
               className={`flex-1 flex items-center justify-center gap-2 py-3 text-sm font-bold rounded-xl transition-all duration-300 ${calcMode === "carga" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
             >
               <Fuel className="w-4 h-4" /> Carga
@@ -1407,23 +1409,18 @@ export default function App() {
                       </div>
                    </div>
                 </div>
-
-                {/* VISTA MAPA MOBILE */}
-                <div className="lg:hidden">
-                   {ViajeMainContent}
-                </div>
               </div>
             ) : (
               <div className="space-y-6 pb-6 lg:pb-6">
                 {/* SECCIÓN CARGA TIPO DE COMBUSTIBLE */}
                 <div className="mx-6 mt-4 space-y-3">
                   <h3 className="text-sm font-extrabold text-slate-800 ml-2 uppercase tracking-wide">Tipo de combustible</h3>
-                  <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
+                  <div className="flex flex-wrap gap-2 pb-2">
                     {fuelOptionsCarga.map((type) => {
                       const isSelected = fuelType === type;
                       return (
-                        <button key={type} onClick={() => { setFuelType(type); localStorage.setItem('bencinaapp_fuel', type); }} className={`px-5 py-3 rounded-2xl text-sm font-bold transition-all whitespace-nowrap ${isSelected ? "bg-slate-900 text-white shadow-md" : "bg-white text-slate-600 shadow-[0_4px_20px_rgb(0,0,0,0.03)] hover:bg-slate-50"}`}>
-                          {type === "diesel" ? "Diesel" : type === "parafina" ? "Parafina" : type + " Octanos"}
+                        <button key={type} onClick={() => { setFuelType(type); localStorage.setItem('bencinaapp_fuel', type); }} className={`px-4 py-2.5 rounded-2xl text-sm font-bold transition-all flex-grow sm:flex-grow-0 text-center ${isSelected ? "bg-slate-900 text-white shadow-md" : "bg-white text-slate-600 shadow-[0_4px_20px_rgb(0,0,0,0.03)] hover:bg-slate-50"}`}>
+                          {type === "diesel" ? "Diesel" : type === "parafina" ? "Parafina" : type + " Oct"}
                         </button>
                       )
                     })}
@@ -1434,44 +1431,98 @@ export default function App() {
                 <div className="mx-6 space-y-3">
                   <h3 className="text-sm font-extrabold text-slate-800 ml-2 uppercase tracking-wide">Ubicación</h3>
                   <div className="bg-white rounded-[2rem] p-2 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
-                    <ComunaAutocomplete placeholder="¿En qué comuna buscas?" value={cargaComuna} onSelect={(c) => { setCargaComuna(c); setCurrentStation(null); }} comunas={availableComunas} />
+                    <ComunaAutocomplete placeholder="¿En qué comuna buscas?" value={cargaComuna} onSelect={handleSelectComuna} comunas={availableComunas} />
                   </div>
-                </div>
-
-                {/* VISTA MAPA/LISTA MOBILE */}
-                <div className="lg:hidden">
-                   {CargaMainContent}
+                  
+                  {/* Búsquedas recientes & GPS */}
+                  <div className="flex flex-wrap items-center gap-2 pl-2 pt-1">
+                     <button onClick={handleGetLocation} className="text-[11px] font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-full flex items-center transition-colors">
+                        {isLocating ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <MapPin className="w-3 h-3 mr-1" />} 
+                        Cerca de mí
+                     </button>
+                     {recentComunas.map(c => (
+                       <button key={c} onClick={() => handleSelectComuna(c)} className="text-[11px] font-bold text-slate-500 bg-slate-200 hover:bg-slate-300 px-3 py-1.5 rounded-full transition-colors">
+                         {c}
+                       </button>
+                     ))}
+                  </div>
                 </div>
               </div>
             )}
           </div>
 
-          {/* FOOTER INFERIOR (Costo Total y Botón) */}
+          {/* FOOTER PANEL IZQUIERDO (BOTON MOBILE O FOOTER DESKTOP) */}
           <div className="absolute lg:relative bottom-0 left-0 right-0 bg-white rounded-t-[2.5rem] lg:rounded-none p-6 shadow-[0_-20px_40px_rgba(0,0,0,0.06)] lg:shadow-none lg:border-t lg:border-slate-200 z-30 pb-8 sm:pb-6 lg:p-6 lg:mt-auto">
-            {FooterContent}
+             <div className="lg:hidden">
+                {calcMode === 'viaje' ? (
+                   <button 
+                     onClick={() => setMobileStep(2)} 
+                     disabled={!originCity || !destCity}
+                     className="w-full bg-slate-900 text-white rounded-[1.25rem] py-4 font-extrabold text-[15px] flex items-center justify-center gap-2 shadow-xl shadow-slate-900/20 active:scale-[0.98] transition-all disabled:opacity-50"
+                   >
+                     Ver Ruta y Resultados <ArrowRight className="w-5 h-5" />
+                   </button>
+                ) : (
+                   <button 
+                     onClick={() => setMobileStep(2)} 
+                     disabled={!cargaComuna || filteredStationsCarga.length === 0}
+                     className="w-full bg-slate-900 text-white rounded-[1.25rem] py-4 font-extrabold text-[15px] flex items-center justify-center gap-2 shadow-xl shadow-slate-900/20 active:scale-[0.98] transition-all disabled:opacity-50"
+                   >
+                     Ver Estaciones y Precios <ArrowRight className="w-5 h-5" />
+                   </button>
+                )}
+             </div>
+             <div className="hidden lg:block">
+                {calcMode === 'viaje' ? FooterContentViaje : (
+                   <div className="w-full bg-slate-100 text-slate-400 rounded-[1.25rem] py-4 font-extrabold text-[15px] flex items-center justify-center gap-2 text-center">
+                      Selecciona una estación en el mapa
+                   </div>
+                )}
+             </div>
           </div>
         </div>
         
-        {/* ================= PANEL DERECHO (DESKTOP) ================= */}
-        <div className="hidden lg:flex flex-1 bg-slate-50/50 p-8 overflow-y-auto no-scrollbar relative flex-col">
-           {calcMode === 'carga' ? (
-               (cargaComuna && filteredStationsCarga.length > 0) ? (
-                   <div className="w-full h-full">{CargaMainContent}</div>
-               ) : (
-                   <div className="w-full h-full flex flex-col items-center justify-center text-slate-400 opacity-60">
-                      <MapPin className="w-16 h-16 mb-4" />
-                      <p className="text-lg font-bold text-center max-w-xs">Selecciona una comuna para ver las estaciones cercanas</p>
-                   </div>
-               )
-           ) : (
-               (originCity && destCity) ? (
-                   <div className="w-full h-full flex flex-col">{ViajeMainContent}</div>
-               ) : (
-                   <div className="w-full h-full flex flex-col items-center justify-center text-slate-400 opacity-60">
-                      <Route className="w-16 h-16 mb-4" />
-                      <p className="text-lg font-bold text-center max-w-xs">Ingresa tu punto de origen y destino para trazar la ruta</p>
-                   </div>
-               )
+        {/* ================= PANEL DERECHO (MAPA Y RESULTADOS) ================= */}
+        <div className={`flex-1 bg-slate-50/50 p-0 lg:p-8 overflow-hidden relative flex-col ${mobileStep === 1 ? 'hidden lg:flex' : 'flex'}`}>
+           
+           {/* HEADER MOBILE PASO 2 */}
+           <div className="lg:hidden flex items-center px-6 pt-12 pb-4 bg-white shadow-sm shrink-0 z-20">
+              <button onClick={() => setMobileStep(1)} className="p-2 bg-slate-100 rounded-full mr-3">
+                 <ChevronLeft className="w-5 h-5 text-slate-700"/>
+              </button>
+              <h2 className="font-black text-[20px] text-slate-800 truncate">
+                 {calcMode === 'viaje' ? 'Ruta y Resultados' : `Estaciones en ${cargaComuna || '...'}`}
+              </h2>
+           </div>
+
+           {/* CONTENEDOR RESTRINGIDO (ESTRUCTURA PRINCIPAL DESKTOP/MOBILE) */}
+           <div className={`flex-1 flex flex-col w-full h-full overflow-hidden relative p-6 lg:p-0 ${calcMode === 'viaje' ? 'pb-[220px] lg:pb-0' : 'pb-6 lg:pb-0'}`}>
+              {calcMode === 'carga' ? (
+                  (cargaComuna && filteredStationsCarga.length > 0) ? (
+                      CargaMainContent
+                  ) : (
+                      <div className="w-full h-full flex flex-col items-center justify-center text-slate-400 opacity-60">
+                         <MapPin className="w-16 h-16 mb-4" />
+                         <p className="text-lg font-bold text-center max-w-xs">Selecciona una comuna para ver las estaciones cercanas</p>
+                      </div>
+                  )
+              ) : (
+                  (originCity && destCity) ? (
+                      ViajeMainContent
+                  ) : (
+                      <div className="w-full h-full flex flex-col items-center justify-center text-slate-400 opacity-60">
+                         <Route className="w-16 h-16 mb-4" />
+                         <p className="text-lg font-bold text-center max-w-xs">Ingresa tu punto de origen y destino para trazar la ruta</p>
+                      </div>
+                  )
+              )}
+           </div>
+
+           {/* FOOTER MOBILE PASO 2 (Solo para Viaje) */}
+           {calcMode === 'viaje' && (
+             <div className="lg:hidden absolute bottom-0 left-0 right-0 bg-white rounded-t-[2.5rem] p-6 shadow-[0_-20px_40px_rgba(0,0,0,0.06)] z-30 pb-8 sm:pb-6">
+                {FooterContentViaje}
+             </div>
            )}
         </div>
         
