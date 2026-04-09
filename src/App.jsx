@@ -245,6 +245,8 @@ function decodePolyline(encoded, precision = 5) {
 function detectTollsInRoute(geometry) {
   if (!geometry || !geometry.coordinates || geometry.coordinates.length < 2) return { total: 0, list: [] };
 
+  const ENABLE_LATERAL_TOLLS = false; // Interruptor oculto solicitado para desactivar laterales
+
   const detected = new Set();
   let total = 0;
   const tolls = [];
@@ -283,6 +285,9 @@ function detectTollsInRoute(geometry) {
     const [lon, lat] = coord;
 
     PEAJES_DB.forEach((p) => {
+      // Si el peaje es lateral y están desactivados, lo saltamos
+      if (!ENABLE_LATERAL_TOLLS && p.tipo === "lateral") return;
+
       if (!detected.has(p.id)) {
         const distToRoute = getStraightLineDistance(lat, lon, p.lat, p.lon);
         
@@ -492,7 +497,6 @@ const RouteCityAutocomplete = ({ placeholder, value, onSelect, comunasData, isOr
   }, [query, isOpen, comunasData, value]);
 
   const handleSelectCity = async (cityName) => {
-    console.log(`[Geocoder] 📡 Buscando coordenadas para ciudad: ${cityName}`);
     setQuery(cityName); setIsOpen(false); setIsLoadingCoords(true);
     try {
       const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&countrycodes=cl&city=${encodeURIComponent(cityName)}&limit=1`);
@@ -500,7 +504,6 @@ const RouteCityAutocomplete = ({ placeholder, value, onSelect, comunasData, isOr
       const data = await res.json();
       const fallbackCity = comunasData.find((c) => c.mainName === cityName);
       if (data && data.length > 0) {
-        console.log(`[Geocoder] ✅ Ciudad encontrada: ${cityName} [${data[0].lat}, ${data[0].lon}]`);
         onSelect({ 
           mainName: cityName, 
           name: cityName, 
@@ -631,11 +634,16 @@ export default function App() {
   // Paginación y control Mobile
   const [mobileStep, setMobileStep] = useState(1);
 
-  // Estados temporales para el Modal de Configuración
+  // Modales
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [tempEff, setTempEff] = useState(efficiencyKml);
   const [tempFuel, setTempFuel] = useState(fuelType);
   const [tempTolls, setTempTolls] = useState(includeTolls);
+  
+  // Calculadora Modal (Estaciones)
+  const [showCalcModal, setShowCalcModal] = useState(false);
+  const [calcVal, setCalcVal] = useState("");
+  const [calcUnit, setCalcUnit] = useState("money"); // 'money' or 'liters'
 
   const [distanceKm, setDistanceKm] = useState("0");
   const [isRoundTrip, setIsRoundTrip] = useState(false);
@@ -667,13 +675,12 @@ export default function App() {
   const handleSelectComuna = (c) => {
     setCargaComuna(c);
     setCurrentStation(null);
-    setSortBy('price'); // Al elegir manualmente, volver a ordenar por precio
+    setSortBy('price'); 
     if (c) {
       const updatedRecents = [c, ...recentComunas.filter(rc => rc !== c)].slice(0, 3);
       setRecentComunas(updatedRecents);
       localStorage.setItem('bencinaapp_recent_comunas', JSON.stringify(updatedRecents));
       
-      // AUTO-ADVANCE EN MOBILE AL ELEGIR COMUNA
       if (window.innerWidth < 1024) {
          setMobileStep(2);
       }
@@ -738,13 +745,11 @@ export default function App() {
     return list;
   }, [cneStations, cargaComuna, fuelType, sortBy, userLocation]);
 
-  // Chequeo para mostrar el toggle de "Por Cercanía"
   const isUserNearCurrentComuna = React.useMemo(() => {
     if (!userLocation || filteredStationsCarga.length === 0) return false;
     return filteredStationsCarga.some(s => s.distToUser !== null && s.distToUser <= 50);
   }, [userLocation, filteredStationsCarga]);
 
-  // Al abrir la configuración, pre-carga los valores actuales
   useEffect(() => {
     if (showSettingsModal) {
       setTempEff(efficiencyKml);
@@ -753,7 +758,6 @@ export default function App() {
     }
   }, [showSettingsModal, efficiencyKml, fuelType, includeTolls]);
 
-  // Guarda la configuración global en el navegador
   const handleSaveSettings = () => {
     setEfficiencyKml(tempEff);
     setFuelType(tempFuel);
@@ -766,11 +770,7 @@ export default function App() {
     setShowSettingsModal(false);
   };
 
-  // Al cambiar el combustible se mantiene la comuna pero se resetea estación
-  useEffect(() => { 
-    setCurrentStation(null);
-  }, [fuelType]);
-
+  // Interceptar clicks del mapa interactivo
   useEffect(() => {
     const handleMessage = (event) => {
       if (event.data && event.data.type === "STATION_CLICKED") {
@@ -785,11 +785,21 @@ export default function App() {
     return () => window.removeEventListener("message", handleMessage);
   }, [filteredStationsCarga]);
 
+  // Auto-scroll a la tarjeta seleccionada
+  useEffect(() => {
+    if (currentStation && calcMode === 'carga') {
+      setTimeout(() => {
+        const el = document.getElementById(`station-card-${currentStation.id}`);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 100);
+    }
+  }, [currentStation, calcMode]);
+
   useEffect(() => {
     if (calcMode === "carga" && cargaComuna && filteredStationsCarga.length > 0) {
-      // Determinamos si mostramos la línea de ruta a la bencinera
       const showRouteLine = userLocation && currentStation && currentStation.distToUser !== null && currentStation.distToUser <= 50;
-      
       const html = generateStationsMapHtml(filteredStationsCarga, currentStation, userLocation, showRouteLine);
       const url = URL.createObjectURL(new Blob([html], { type: "text/html" }));
       setStationsMapUrl(url);
@@ -821,6 +831,7 @@ export default function App() {
       setIsCalculatingRoute(true);
       setRouteError(false);
 
+      // AHORA OSRM UTILIZA overview=full PARA MÁXIMA PRECISIÓN Y NO CORTAR CURVAS
       const endpoints = [
         { url: "https://router.project-osrm.org/route/v1/driving", type: "osrm" },
         { url: "https://routing.openstreetmap.de/routed-car/route/v1/driving", type: "osrm" },
@@ -856,7 +867,7 @@ export default function App() {
                   dist: data.routes[0].summary.distance / 1000
                 };
               } else {
-                const res = await fetch(`${ep.url}/${originCity.lon},${originCity.lat};${destCity.lon},${destCity.lat}?overview=simplified&geometries=geojson`, { signal: controller.signal });
+                const res = await fetch(`${ep.url}/${originCity.lon},${originCity.lat};${destCity.lon},${destCity.lat}?overview=full&geometries=geojson`, { signal: controller.signal });
                 
                 const contentType = res.headers.get("content-type");
                 if (contentType && contentType.includes("text/html")) throw new Error("Recibido HTML en vez de JSON");
@@ -1006,7 +1017,7 @@ export default function App() {
               }
             }
           });
-          
+
           const filteredList = cleanList.filter((s) => s.lat !== 0 && s.lon !== 0 && s.comuna !== "Desconocida");
           setCneStations(filteredList);
         } else {
@@ -1132,7 +1143,7 @@ export default function App() {
           <div className="absolute top-3 left-3 bg-white/90 backdrop-blur-sm text-[10px] font-bold px-3 py-1.5 rounded-xl shadow-sm text-slate-700 pointer-events-none">Toca un pin para verla</div>
         </div>
 
-        {/* Toggle (New location) - Solo aparece si hay ubicación del usuario Y si está dentro de un rango de 50km de alguna estación listada */}
+        {/* Toggle (New location) */}
         {isUserNearCurrentComuna && (
              <div className="flex bg-slate-200 p-1.5 rounded-xl shrink-0">
                <button onClick={() => setSortBy('price')} className={`flex-1 text-[13px] font-bold px-3 py-2 rounded-lg transition-colors shadow-sm ${sortBy === 'price' ? 'bg-white text-slate-800' : 'text-slate-500 shadow-none hover:text-slate-700'}`}>Por Precio</button>
@@ -1150,14 +1161,18 @@ export default function App() {
               const bestPrice = getBestPrice(pObj);
 
               return (
-                <div key={station.id} onClick={() => setCurrentStation(isSelected ? null : station)} className={`w-full shrink-0 flex flex-col p-3.5 rounded-[1.5rem] cursor-pointer transition-all duration-300 transform-gpu ${isSelected ? "bg-slate-900 shadow-xl ring-4 ring-slate-200" : "bg-white shadow-[0_4px_20px_rgb(0,0,0,0.03)] hover:shadow-md"}`}>
+                <div key={station.id} id={`station-card-${station.id}`} onClick={() => setCurrentStation(isSelected ? null : station)} className={`w-full shrink-0 flex flex-col p-3.5 rounded-[1.5rem] cursor-pointer transition-all duration-300 transform-gpu ${isSelected ? "bg-slate-900 shadow-xl ring-4 ring-slate-200" : "bg-white shadow-[0_4px_20px_rgb(0,0,0,0.03)] hover:shadow-md"}`}>
                   <div className="flex items-center justify-between">
                     <div className="flex flex-col flex-1 overflow-hidden pr-2">
                       <div className="flex items-center space-x-2 mb-1">
                         {station.logo ? (<img src={station.logo} alt={station.distribuidor} className="h-6 w-6 object-contain rounded-full bg-white p-0.5" onError={(e) => { e.target.style.display = "none"; e.target.nextSibling.style.display = "block"; }} />) : null}
                         <Fuel className={`w-5 h-5 ${isSelected ? 'text-slate-300' : 'text-slate-400'}`} style={{ display: station.logo ? "none" : "block" }} />
                         <span className={`font-black text-sm truncate ${isSelected ? 'text-white' : 'text-slate-800'}`}>{station.distribuidor}</span>
-                        {isCheapest && <span className="text-[10px] font-extrabold text-emerald-800 bg-emerald-400/20 rounded-full px-1.5 py-0.5 ml-1 shrink-0 flex items-center"><TrendingUp className="w-2.5 h-2.5 mr-0.5" /> Top 1</span>}
+                        {isCheapest && (
+                          <span className={`text-[10px] font-extrabold rounded-full px-1.5 py-0.5 ml-1 shrink-0 flex items-center transition-colors ${isSelected ? 'text-emerald-300 bg-emerald-400/20' : 'text-emerald-800 bg-emerald-400/20'}`}>
+                            <TrendingUp className="w-2.5 h-2.5 mr-0.5" /> Top 1
+                          </span>
+                        )}
                       </div>
                       <span className={`text-xs truncate font-medium ${isSelected ? 'text-slate-400' : 'text-slate-500'}`} title={station.direccion}>{station.direccion}</span>
                       <div className="flex items-center mt-2">
@@ -1200,7 +1215,15 @@ export default function App() {
                             const isThisFuelSelected = t === fuelType;
                             
                             return (
-                              <div key={t} className={`rounded-xl p-2 flex flex-col justify-center border transition-colors ${isThisFuelSelected ? 'bg-blue-600 border-blue-500' : 'bg-slate-800 border-slate-700'}`}>
+                              <button 
+                                key={t} 
+                                onClick={(e) => { 
+                                  e.stopPropagation(); 
+                                  setFuelType(t); 
+                                  localStorage.setItem('bencinaapp_fuel', t); 
+                                }}
+                                className={`rounded-xl p-2 flex flex-col justify-center border transition-all text-left ${isThisFuelSelected ? 'bg-blue-600 border-blue-500 scale-[1.02] shadow-md' : 'bg-slate-800 border-slate-700 hover:bg-slate-700 active:scale-95'}`}
+                              >
                                 <span className={`text-[8px] font-bold uppercase mb-0.5 ${isThisFuelSelected ? 'text-blue-100' : 'text-slate-400'}`}>
                                   {t === "diesel" ? "Diesel" : t === "parafina" ? "Parafina" : `${t} Oct`}
                                 </span>
@@ -1212,19 +1235,27 @@ export default function App() {
                                 ) : (
                                   <span className="text-[12px] font-black text-white">{formatCLP(bestP)}</span>
                                 )}
-                              </div>
+                              </button>
                             );
                           })}
                         </div>
-                        <a 
-                          href={`https://www.google.com/maps/dir/?api=1&destination=${station.lat},${station.lon}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          onClick={(e) => e.stopPropagation()} 
-                          className="w-full bg-blue-500 hover:bg-blue-400 text-white rounded-xl py-2 text-[11px] font-extrabold flex items-center justify-center gap-1.5 shadow-md transition-colors"
-                        >
-                          <MapPin className="w-3.5 h-3.5" /> Cómo llegar
-                        </a>
+                        <div className="flex gap-2 mt-1">
+                          <button 
+                            onClick={(e) => { e.stopPropagation(); setShowCalcModal(true); }} 
+                            className="flex-1 bg-slate-700 hover:bg-slate-600 text-white rounded-xl py-2.5 text-[12px] font-extrabold flex items-center justify-center gap-1.5 shadow-md transition-colors"
+                          >
+                            <Calculator className="w-3.5 h-3.5" /> Calcular
+                          </button>
+                          <a 
+                            href={`https://www.google.com/maps/dir/?api=1&destination=${station.lat},${station.lon}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()} 
+                            className="flex-1 bg-blue-500 hover:bg-blue-400 text-white rounded-xl py-2.5 text-[12px] font-extrabold flex items-center justify-center gap-1.5 shadow-md transition-colors"
+                          >
+                            <MapPin className="w-3.5 h-3.5" /> Cómo llegar
+                          </a>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -1555,6 +1586,74 @@ export default function App() {
            )}
         </div>
         
+        {/* ================= MODAL CALCULADORA CARGA (NUEVO) ================= */}
+        {showCalcModal && currentStation && (
+          <div className="fixed inset-0 z-[1000] bg-slate-900/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-4 sm:p-0">
+             <div className="bg-white w-full max-w-sm rounded-[2.5rem] shadow-2xl p-6 animate-in slide-in-from-bottom-8 duration-300 mb-4 sm:mb-0">
+               <div className="flex justify-between items-center mb-4">
+                  <h3 className="font-black text-slate-900 flex items-center text-xl">
+                     <Calculator className="w-6 h-6 mr-2 text-slate-900"/> Calculadora
+                  </h3>
+                  <button onClick={() => {setShowCalcModal(false); setCalcVal("");}} className="bg-slate-100 p-2 rounded-full hover:bg-slate-200 transition-colors">
+                     <X className="w-5 h-5 text-slate-600"/>
+                  </button>
+               </div>
+               
+               <div className="mb-4">
+                 <p className="text-sm font-bold text-slate-700">{currentStation.distribuidor}</p>
+                 <p className="text-xs text-slate-500">{currentStation.direccion}</p>
+               </div>
+
+               {/* Selector de combustible dentro de la calculadora */}
+               <div className="flex flex-wrap gap-1.5 mb-4">
+                 {["93", "95", "97", "diesel", "parafina"].map(t => {
+                    const p = currentStation.precios[t];
+                    if(getBestPrice(p) === 0) return null;
+                    const isSel = t === fuelType;
+                    return (
+                      <button key={t} onClick={() => { setFuelType(t); localStorage.setItem('bencinaapp_fuel', t); }} className={`px-2.5 py-1.5 rounded-lg text-[10px] font-bold transition-all flex-grow text-center ${isSel ? 'bg-blue-600 text-white shadow-md' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}>
+                        {t === "diesel" ? "Diesel" : t === "parafina" ? "Parafina" : `${t} Oct`}
+                      </button>
+                    )
+                 })}
+               </div>
+
+               {/* Toggle claro de Pesos vs Litros */}
+               <div className="flex flex-col gap-3 mb-4">
+                  <div className="flex bg-slate-100 p-1.5 rounded-xl">
+                     <button onClick={() => { setCalcUnit("money"); setCalcVal(""); }} className={`flex-1 text-[13px] font-bold px-3 py-2 rounded-lg transition-colors ${calcUnit === 'money' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>Pesos ($)</button>
+                     <button onClick={() => { setCalcUnit("liters"); setCalcVal(""); }} className={`flex-1 text-[13px] font-bold px-3 py-2 rounded-lg transition-colors ${calcUnit === 'liters' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>Litros (L)</button>
+                  </div>
+                  <div className="relative">
+                    <input type="number" min="0" step={calcUnit === "liters" ? "0.1" : "1000"} value={calcVal} onChange={(e) => setCalcVal(e.target.value)} className="w-full p-4 text-center text-xl border border-slate-200 rounded-[1.25rem] focus:ring-2 focus:ring-blue-500 outline-none font-black text-slate-900 bg-white shadow-sm" placeholder={calcUnit === "money" ? "Monto en $" : "Cantidad en Lts"} />
+                  </div>
+               </div>
+
+               <div className="bg-slate-100 p-4 rounded-2xl flex flex-col items-center justify-center">
+                  <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                    {calcUnit === "money" ? "Recibirás aprox." : "Costo estimado"}
+                  </span>
+                  <span className="text-3xl font-black text-slate-900">
+                    {(() => {
+                       const p = getBestPrice(currentStation.precios[fuelType]);
+                       const v = parseFloat(calcVal) || 0;
+                       if (p === 0) return "---";
+                       if (calcUnit === "money") {
+                          return `${(v / p).toFixed(1)} Lts`;
+                       } else {
+                          return formatCLP(v * p);
+                       }
+                    })()}
+                  </span>
+               </div>
+               
+               <button onClick={() => {setShowCalcModal(false); setCalcVal("");}} className="mt-4 w-full bg-slate-900 text-white py-4 rounded-[1.25rem] font-bold text-[15px] active:scale-95 transition-transform shadow-xl shadow-slate-900/20">
+                  Cerrar
+               </button>
+             </div>
+          </div>
+        )}
+
         {/* ================= MODAL DE PEAJES ================= */}
         {showTollsModal && (
           <div className="fixed inset-0 z-[1000] bg-slate-900/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-4 sm:p-0">
