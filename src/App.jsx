@@ -1124,9 +1124,9 @@ export default function App() {
   
   const CargaMainContent = (
     cargaComuna && filteredStationsCarga.length > 0 && (
-      <div className="flex flex-col h-full w-full animate-in fade-in duration-500 overflow-hidden space-y-4">
+      <div className="flex flex-col h-full w-full animate-in fade-in duration-500 overflow-hidden space-y-3 lg:space-y-4">
         {/* Title */}
-        <div className="flex items-center justify-between shrink-0 lg:pt-0 pt-2">
+        <div className="flex items-center justify-between shrink-0 lg:pt-0 pt-1">
            <div className="flex items-center gap-2">
               <h3 className="text-sm font-extrabold text-slate-800 uppercase tracking-wide">Estaciones</h3>
               <span className="text-[10px] font-bold text-slate-500 bg-slate-200 px-2 py-0.5 rounded-full">{filteredStationsCarga.length}</span>
@@ -1134,7 +1134,7 @@ export default function App() {
         </div>
 
         {/* MAPA FIJO */}
-        <div className="w-full h-[30vh] lg:h-[350px] lg:min-h-[350px] shrink-0 rounded-[2rem] overflow-hidden shadow-sm border-[6px] border-white relative bg-slate-200">
+        <div className="w-full h-[220px] lg:h-[350px] lg:min-h-[350px] shrink-0 rounded-[1.5rem] lg:rounded-[2rem] overflow-hidden shadow-sm border-[4px] lg:border-[6px] border-white relative bg-slate-200">
           {stationsMapUrl ? (
             <iframe key={`carga-map-${stationsMapUrl}-${mobileStep}`} src={stationsMapUrl} title="Mapa Estaciones" width="100%" height="100%" style={{ border: 0 }} sandbox="allow-scripts allow-same-origin" />
           ) : (
@@ -1270,7 +1270,7 @@ export default function App() {
 
   const ViajeMainContent = (
     originCity && destCity && (
-      <div className="flex flex-col h-full w-full animate-in fade-in slide-in-from-bottom-4 duration-500 overflow-hidden space-y-3">
+      <div className="flex flex-col h-full w-full animate-in fade-in slide-in-from-bottom-4 duration-500 overflow-hidden space-y-3 lg:space-y-4">
         <div className="flex items-center justify-between shrink-0">
           <span className="text-sm font-extrabold text-slate-800 uppercase tracking-wide">Ruta calculada</span>
           {isCalculatingRoute ? (
@@ -1291,7 +1291,7 @@ export default function App() {
           </div>
         )}
 
-        <div className="flex-1 w-full rounded-[2rem] overflow-hidden shadow-sm border-[6px] border-white bg-slate-200 relative">
+        <div className="flex-1 w-full rounded-[1.5rem] lg:rounded-[2rem] overflow-hidden shadow-sm border-[4px] lg:border-[6px] border-white bg-slate-200 relative">
           {isCalculatingRoute ? (
             <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-400 bg-slate-100">
               <MapIcon className="w-8 h-8 mb-2 opacity-50" />
