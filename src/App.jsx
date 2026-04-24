@@ -27,7 +27,10 @@ import {
   Settings,
   ArrowUpDown,
   Car,
-  Info
+  Info,
+  Tag,
+  Plus,
+  ChevronUp
 } from "lucide-react";
 
 // =====================================================================
@@ -151,7 +154,7 @@ const PEAJES_DB = [
   { id: "p_chimbarongo_lat", nombre: "Peaje Chimbarongo", lat: -34.71434, lon: -71.03058, precio: 900, tipo: "lateral" },
   { id: "p_teno_sur", nombre: "Peaje Teno", lat: -34.79606, lon: -71.04829, precio: 3700, tipo: "peaje" },
   { id: "p_molina_lat", nombre: "Peaje Molina", lat: -35.09308, lon: -71.3181, precio: 900, tipo: "lateral" },
-  { id: "p_chillan_lin", nombre: "Peaje Chillán - Linares", lat: -35.83706, lon: -71.63185, precio: 800, tipo: "lateral" },
+  { id: "p_chillan_lin", fixed: true, nombre: "Peaje Chillán - Linares", lat: -35.83706, lon: -71.63185, precio: 800, tipo: "lateral" },
   { id: "p_chillan_sc", nombre: "Peaje San Carlos", lat: -36.41413, lon: -71.94597, precio: 800, tipo: "lateral" },
   { id: "p_losangeles_lat", nombre: "Peaje Los Ángeles", lat: -37.48156, lon: -72.40525, precio: 800, tipo: "lateral" },
   { id: "p_padrelc_lat", nombre: "Peaje Padre Las Casas", lat: -38.77516, lon: -72.58122, precio: 800, tipo: "lateral" },
@@ -180,6 +183,52 @@ const PEAJES_DB = [
   { id: "t_nororiente", nombre: "TAG Nororiente", lat: -33.320, lon: -70.600, precio: 3000, tipo: "tag" },
   { id: "t_aeropuerto", nombre: "TAG Aeropuerto AMB", lat: -33.400, lon: -70.780, precio: 1200, tipo: "tag" }
 ];
+
+// =========================
+// 🏷️ DESCUENTOS POR MARCA (Actualizados Abril 2026)
+// =========================
+const DESCUENTOS_POR_MARCA = {
+  "copec": [
+    { dia: "Lunes", desc: "$50 a $100/L dcto con Cencosud Scotiabank" },
+    { dia: "Lunes", desc: "$100/L dcto con Jumbo Prime" },
+    { dia: "Miércoles", desc: "Hasta $100/L dcto con Scotiabank" },
+    { dia: "Miércoles", desc: "$50/L dcto para socios Automóvil Club" },
+    { dia: "Jueves", desc: "$100/L dcto con Tarjeta de Crédito BCI" },
+    { dia: "Jueves", desc: "$100/L dcto con Tarjetas Coopeuch" },
+    { dia: "Viernes", desc: "$50 a $300/L dcto con Tenpo" },
+    { dia: "Viernes", desc: "$100/L dcto con RUT Pay Banco Estado" },
+    { dia: "Domingo", desc: "$100/L dcto con Tarjeta de Crédito BICE" },
+    { dia: "Lun-Vie", desc: "$100/L dcto con Santander Consumer" },
+    { dia: "Todos los días", desc: "$50/L dcto primera carga App Copec" }
+  ],
+  "shell": [
+    { dia: "Martes", desc: "$100/L dcto con Lider Bci" },
+    { dia: "Viernes", desc: "$50 a $300/L dcto con Tenpo" },
+    { dia: "Domingo", desc: "$100/L dcto con Tarjeta de Crédito BICE" }
+  ],
+  "aramco": [
+    { dia: "Lunes", desc: "$100 a $150/L dcto con Banco Consorcio" },
+    { dia: "Lunes", desc: "$15 a $25/L dcto con Beneficios Municipalidades" },
+    { dia: "Martes", desc: "$50/L dcto con Mercado Pago" },
+    { dia: "Martes", desc: "$15 a $25/L dcto con Beneficios Municipalidades" },
+    { dia: "Miércoles", desc: "$100 a $150/L dcto con Banco Ripley" },
+    { dia: "Jueves", desc: "$150/L dcto con Tarjeta ABC" },
+    { dia: "Viernes", desc: "$50 a $300/L dcto con Tenpo" },
+    { dia: "Sábado", desc: "$100 a $150/L dcto con Sbpay" },
+    { dia: "Domingo", desc: "$150/L dcto con Spin Visa de Cruz Verde" },
+    { dia: "Todos los días", desc: "$15 a $25/L dcto con Jenabien (FFAA/PDI)" },
+    { dia: "Todos los días", desc: "$50/L dcto primera carga App Aramco" }
+  ]
+};
+
+const getDiscountsForBrand = (brandName) => {
+   if(!brandName) return null;
+   const b = normalizeString(brandName);
+   if (b.includes("copec")) return DESCUENTOS_POR_MARCA["copec"];
+   if (b.includes("shell")) return DESCUENTOS_POR_MARCA["shell"];
+   if (b.includes("aramco") || b.includes("petrobras")) return DESCUENTOS_POR_MARCA["aramco"];
+   return null;
+}
 
 function extractRegionId(displayName) {
   const lower = (displayName || "").toLowerCase();
@@ -315,7 +364,7 @@ function detectTollsInRoute(geometry) {
   return { total, list: tolls };
 }
 
-// Extrae el mejor precio disponible
+// Extrae el mejor precio disponible (usado para listado/orden)
 function getBestPrice(pObj) {
   if (!pObj) return 0;
   if (typeof pObj === "number") return pObj;
@@ -325,7 +374,7 @@ function getBestPrice(pObj) {
   return asis > 0 ? asis : auto;
 }
 
-function generateMapHtml(origin, dest, geometry, isRoundTrip, tolls = []) {
+function generateMapHtml(origin, dest, geometry, isRoundTrip, tolls = [], waypoints = []) {
   if (!origin || !dest) return "";
   const geomStr = geometry ? JSON.stringify(geometry) : "null";
   
@@ -338,6 +387,17 @@ function generateMapHtml(origin, dest, geometry, isRoundTrip, tolls = []) {
       }),
       zIndexOffset: 500
     }).addTo(map).bindPopup("<b style='color:#334155'>${t.nombre}</b><br><span style='color:#f59e0b;font-weight:bold'>$${t.precio}</span>");
+  `).join('\n');
+
+  const waypointsJs = waypoints.map(wp => `
+    L.marker([${wp.lat}, ${wp.lon}], {
+      icon: L.divIcon({
+        className: 'marker-waypoint',
+        iconSize: [12, 12],
+        html: '<div style="background:#f59e0b;width:12px;height:12px;border:2px solid white;border-radius:50%;box-shadow:0 2px 5px rgba(0,0,0,0.3)"></div>'
+      }),
+      zIndexOffset: 600
+    }).addTo(map).bindPopup("<b style='color:#334155'>Parada: ${wp.mainName}</b>");
   `).join('\n');
 
   return `
@@ -366,6 +426,8 @@ function generateMapHtml(origin, dest, geometry, isRoundTrip, tolls = []) {
             L.marker(originCoord, {icon: L.divIcon({ className: 'marker-origin', iconSize: [16, 16], html: '<div style="background:#3b82f6;width:16px;height:16px;border:3px solid white;border-radius:50%;box-shadow:0 2px 5px rgba(0,0,0,0.2)"></div>' })}).addTo(map);
             L.marker(destCoord, {icon: L.divIcon({ className: 'marker-dest', iconSize: [16, 16], html: '<div style="background:#ef4444;width:16px;height:16px;border:3px solid white;border-radius:50%;box-shadow:0 2px 5px rgba(0,0,0,0.2)"></div>' })}).addTo(map);
             
+            ${waypointsJs}
+
             var geometry = ${geomStr};
             if (geometry && geometry.coordinates) {
                 var coords = geometry.coordinates.map(function(c) { return [c[1], c[0]]; });
@@ -387,7 +449,7 @@ function generateStationsMapHtml(stations, selectedStation, userLoc, showRouteLi
   const selectedId = selectedStation?.id;
   const markersJs = stations
     .map((s) => {
-      const isSelected = s.id === selectedId;
+      const isSelected = selectedStation && s.id === selectedId;
       const color = isSelected ? "#3b82f6" : s.isOutdated ? "#cbd5e1" : "#94a3b8";
       const zIndex = isSelected ? 1000 : 1;
       const scale = isSelected ? "scale(1.4)" : "scale(1)";
@@ -466,23 +528,31 @@ function generateStationsMapHtml(stations, selectedStation, userLoc, showRouteLi
   `;
 }
 
-const RouteCityAutocomplete = ({ placeholder, value, onSelect, comunasData, isOrigin }) => {
+const RouteCityAutocomplete = ({ placeholder, value, onSelect, comunasData, hideClear }) => {
   const [query, setQuery] = useState(value ? value.mainName : "");
-  const [results, setResults] = useState([]);
+  const [localResults, setLocalResults] = useState([]);
+  const [externalResults, setExternalResults] = useState([]);
   const [isOpen, setIsOpen] = useState(false);
-  const [isLoadingCoords, setIsLoadingCoords] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
 
   useEffect(() => { setQuery(value ? value.mainName : ""); }, [value]);
 
   useEffect(() => {
-    if (!isOpen) { setResults([]); return; }
+    if (!isOpen) {
+        setLocalResults([]);
+        setExternalResults([]);
+        return;
+    }
+
     const safeQuery = normalizeString(query);
     if (!safeQuery || (value && normalizeString(value.mainName) === safeQuery)) {
-      setResults(comunasData.slice(0, 50));
+      setLocalResults(comunasData.slice(0, 15));
+      setExternalResults([]);
       return;
     }
+
+    // Búsqueda Local Rápida (Comunas)
     const filtered = comunasData.filter((c) => normalizeString(c.mainName).includes(safeQuery));
-    
     filtered.sort((a, b) => {
       const nameA = normalizeString(a.mainName);
       const nameB = normalizeString(b.mainName);
@@ -492,37 +562,56 @@ const RouteCityAutocomplete = ({ placeholder, value, onSelect, comunasData, isOr
       if (!startsA && startsB) return 1;
       return nameA.localeCompare(nameB);
     });
+    setLocalResults(filtered.slice(0, 5));
 
-    setResults(filtered.slice(0, 50));
+    // Búsqueda Global (Lugares, Parques, Negocios) en OpenStreetMap
+    if (safeQuery.length >= 3) {
+      setIsSearching(true);
+      const timeoutId = setTimeout(async () => {
+        try {
+          const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&countrycodes=cl&q=${encodeURIComponent(query)}&limit=5`);
+          const data = await res.json();
+          const mapped = data.map(d => {
+            let nameParts = d.display_name.split(',').map(p => p.trim());
+            let mainName = d.name || nameParts[0];
+            let details = nameParts.filter(p => p !== mainName).slice(0, 2).join(', ');
+            return {
+              mainName: mainName,
+              name: mainName,
+              regionName: details,
+              lat: parseFloat(d.lat),
+              lon: parseFloat(d.lon),
+              isExternal: true
+            };
+          });
+
+          // Evitar duplicar las comunas locales que ya encontró
+          const uniqueExternal = mapped.filter(ex => !filtered.some(loc => normalizeString(loc.mainName) === normalizeString(ex.mainName)));
+          setExternalResults(uniqueExternal);
+        } catch (err) {
+          console.error(err);
+        } finally {
+          setIsSearching(false);
+        }
+      }, 800);
+
+      return () => {
+        clearTimeout(timeoutId);
+      };
+    } else {
+      setExternalResults([]);
+      setIsSearching(false);
+    }
   }, [query, isOpen, comunasData, value]);
 
-  const handleSelectCity = async (cityName) => {
-    setQuery(cityName); setIsOpen(false); setIsLoadingCoords(true);
-    try {
-      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&countrycodes=cl&city=${encodeURIComponent(cityName)}&limit=1`);
-      
-      const data = await res.json();
-      const fallbackCity = comunasData.find((c) => c.mainName === cityName);
-      if (data && data.length > 0) {
-        onSelect({ 
-          mainName: cityName, 
-          name: cityName, 
-          lat: parseFloat(data[0].lat), 
-          lon: parseFloat(data[0].lon), 
-          regionId: fallbackCity?.regionId || "RM",
-          regionName: fallbackCity?.regionName || ""
-        });
-      } else { 
-        onSelect(fallbackCity); 
-      }
-    } catch (err) { 
-      onSelect(comunasData.find((c) => c.mainName === cityName)); 
-    } 
-    finally { setIsLoadingCoords(false); }
+  const handleSelectItem = (item) => {
+    setQuery(item.mainName);
+    setIsOpen(false);
+    onSelect(item);
   };
 
   return (
-    <div className="relative w-full">
+    <div className="relative w-full flex-1">
       <input
         type="text" value={query} onFocus={() => setIsOpen(true)} onBlur={() => setTimeout(() => setIsOpen(false), 200)}
         onChange={(e) => {
@@ -532,27 +621,59 @@ const RouteCityAutocomplete = ({ placeholder, value, onSelect, comunasData, isOr
         placeholder={placeholder}
         className="w-full py-2 pr-10 text-[18px] font-bold text-slate-800 bg-transparent outline-none placeholder:text-slate-400 placeholder:font-medium"
       />
-      {isLoadingCoords ? (
+      {isSearching ? (
         <Loader2 className="absolute right-2 top-2.5 w-4 h-4 text-blue-500 animate-spin" />
-      ) : value && value.mainName === query ? (
+      ) : value && value.mainName === query && !hideClear ? (
         <button type="button" onMouseDown={(e) => { e.preventDefault(); setQuery(""); onSelect(null); setIsOpen(true); }} className="absolute right-2 top-2.5 text-slate-400 hover:text-red-500 transition-colors cursor-pointer">
           <X className="w-4 h-4" />
         </button>
       ) : (
         <Search className="absolute right-2 top-2.5 w-4 h-4 text-slate-300 pointer-events-none" />
       )}
-      {isOpen && results.length > 0 && (
-        <ul className="absolute z-50 w-full mt-2 bg-white border border-slate-100 rounded-2xl shadow-xl max-h-48 overflow-y-auto">
-          {results.map((r, i) => (
-            <li key={i} onMouseDown={(e) => { e.preventDefault(); handleSelectCity(r.mainName); }} className="p-3 cursor-pointer flex justify-between items-center hover:bg-slate-50 text-slate-700 border-b last:border-0 border-slate-50">
+      
+      {isOpen && (localResults.length > 0 || externalResults.length > 0) && (
+        <div className="absolute z-50 w-full mt-2 bg-white border border-slate-100 rounded-2xl shadow-xl max-h-64 overflow-y-auto">
+          
+          {localResults.length > 0 && (
+             <div className="px-4 py-2 bg-slate-50 text-[10px] font-black text-slate-400 uppercase tracking-widest sticky top-0 z-10 border-b border-slate-100">Comunas</div>
+          )}
+          {localResults.map((r, i) => (
+            <div key={`loc-${i}`} onMouseDown={(e) => { e.preventDefault(); handleSelectItem(r); }} className="p-3 px-4 cursor-pointer flex justify-between items-center hover:bg-slate-50 text-slate-700 border-b border-slate-50 last:border-0 transition-colors">
               <div className="flex flex-col">
-                 <span className="text-sm font-bold text-slate-800">{r.mainName}</span>
+                 <span className="text-sm font-bold text-slate-800 flex items-center gap-1.5">{r.mainName}</span>
                  {r.regionName && <span className="text-[10px] text-slate-400 font-semibold uppercase">{r.regionName}</span>}
               </div>
-              {value?.mainName === r.mainName && <Check className="w-4 h-4 text-blue-600" />}
-            </li>
+              {value?.mainName === r.mainName && <Check className="w-4 h-4 text-blue-600 shrink-0" />}
+            </div>
           ))}
-        </ul>
+
+          {externalResults.length > 0 && (
+             <div className="px-4 py-2 bg-slate-50 text-[10px] font-black text-slate-400 uppercase tracking-widest sticky top-0 z-10 border-y border-slate-100">Lugares y Direcciones</div>
+          )}
+          {externalResults.map((r, i) => (
+            <div key={`ext-${i}`} onMouseDown={(e) => { e.preventDefault(); handleSelectItem(r); }} className="p-3 px-4 cursor-pointer flex justify-between items-center hover:bg-slate-50 text-slate-700 border-b border-slate-50 last:border-0 transition-colors">
+              <div className="flex flex-col">
+                 <span className="text-[13px] font-bold text-slate-800 flex items-start gap-1.5 leading-snug"><MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5"/> {r.mainName}</span>
+                 <span className="text-[10px] text-slate-400 font-medium truncate max-w-[280px] pl-5">{r.regionName}</span>
+              </div>
+              {value?.mainName === r.mainName && <Check className="w-4 h-4 text-blue-600 shrink-0" />}
+            </div>
+          ))}
+          
+        </div>
+      )}
+      
+      {isOpen && isSearching && localResults.length === 0 && (
+         <div className="absolute z-50 w-full mt-2 bg-white border border-slate-100 rounded-2xl shadow-xl p-4 flex flex-col items-center justify-center gap-2 text-blue-600">
+            <Loader2 className="w-5 h-5 animate-spin" />
+            <span className="text-xs font-bold">Buscando lugares...</span>
+         </div>
+      )}
+
+      {isOpen && query.length > 2 && localResults.length === 0 && externalResults.length === 0 && !isSearching && (
+         <div className="absolute z-50 w-full mt-2 bg-white border border-slate-100 rounded-2xl shadow-xl p-4 text-center text-sm text-slate-500 font-medium">
+            No se encontraron lugares. Intenta con otro nombre.
+         </div>
       )}
     </div>
   );
@@ -641,7 +762,11 @@ export default function App() {
   const [tempFuel, setTempFuel] = useState(fuelType);
   const [tempTolls, setTempTolls] = useState(includeTolls);
   
-  // Calculadora Modal (Estaciones)
+  // Estación Detail & Calculadora
+  const [showStationModal, setShowStationModal] = useState(false);
+  const [serviceMode, setServiceMode] = useState("asistido"); // "asistido" o "autoservicio"
+  const [showAllDiscounts, setShowAllDiscounts] = useState(false);
+  
   const [showCalcModal, setShowCalcModal] = useState(false);
   const [calcVal, setCalcVal] = useState("");
   const [calcUnit, setCalcUnit] = useState("money"); // 'money' or 'liters'
@@ -652,6 +777,8 @@ export default function App() {
 
   const [originCity, setOriginCity] = useState(null);
   const [destCity, setDestCity] = useState(null);
+  const [waypoints, setWaypoints] = useState([]); // Arreglo de paradas intermedias
+
   const [routeGeometry, setRouteGeometry] = useState(null);
   const [mapUrl, setMapUrl] = useState("");
   const [stationsMapUrl, setStationsMapUrl] = useState("");
@@ -674,13 +801,59 @@ export default function App() {
   const [detectedTolls, setDetectedTolls] = useState({ total: 0, list: [] });
   const [showTollsModal, setShowTollsModal] = useState(false);
 
-  // Scrollea la lista al tope y cierra estación seleccionada cuando hay un cambio de búsqueda principal
+  // Funciones para manejar Paradas (Waypoints)
+  const addWaypoint = () => {
+    if (waypoints.length < 3) {
+      setWaypoints([...waypoints, null]);
+    }
+  };
+
+  const updateWaypoint = (index, value) => {
+    const newWps = [...waypoints];
+    newWps[index] = value;
+    setWaypoints(newWps);
+  };
+
+  const removeWaypoint = (index) => {
+    const newWps = [...waypoints];
+    newWps.splice(index, 1);
+    setWaypoints(newWps);
+  };
+
+  const moveWaypoint = (index, direction) => {
+    const newWps = [...waypoints];
+    const targetIndex = index + direction;
+    if (targetIndex >= 0 && targetIndex < newWps.length) {
+      const temp = newWps[index];
+      newWps[index] = newWps[targetIndex];
+      newWps[targetIndex] = temp;
+      setWaypoints(newWps);
+    }
+  };
+
+  // Scrollea la lista al tope y cierra modal seleccionado cuando hay un cambio de búsqueda principal
   useEffect(() => {
     setCurrentStation(null);
+    setShowStationModal(false);
+    setShowAllDiscounts(false);
     if (cargaListRef.current) {
        cargaListRef.current.scrollTop = 0;
     }
   }, [cargaComuna, fuelType, sortBy]);
+
+  // Al abrir el modal de una estación, determinamos qué servicio mostrar por defecto
+  useEffect(() => {
+    if (currentStation) {
+      const p = currentStation.precios[fuelType];
+      if (p && p.autoservicio > 0 && p.asistido > 0) {
+        setServiceMode(p.autoservicio < p.asistido ? "autoservicio" : "asistido");
+      } else if (p && p.autoservicio > 0) {
+        setServiceMode("autoservicio");
+      } else {
+        setServiceMode("asistido");
+      }
+    }
+  }, [currentStation, fuelType]);
 
   const handleSelectComuna = (c) => {
     setCargaComuna(c);
@@ -735,45 +908,26 @@ export default function App() {
     if (!cargaComuna) return [];
     const now = Date.now();
     const OUTDATED_MS = 7 * 24 * 60 * 60 * 1000;
-    let list = [];
     
-    cneStations.forEach((s) => {
-      if (s.comuna === cargaComuna) {
-        const pObj = s.precios[fuelType];
-        const isOutdated = s.timestampAct === 0 || now - s.timestampAct > OUTDATED_MS;
-        const distToUser = userLocation ? getStraightLineDistance(userLocation.lat, userLocation.lon, s.lat, s.lon) : null;
-        
-        // Si tiene precio Asistido, se crea como una estación independiente
-        if (pObj && pObj.asistido > 0) {
-          list.push({ 
+    let list = cneStations
+      .filter((s) => s.comuna === cargaComuna && getBestPrice(s.precios[fuelType]) > 0)
+      .map((s) => {
+          const distToUser = userLocation ? getStraightLineDistance(userLocation.lat, userLocation.lon, s.lat, s.lon) : null;
+          const hasAuto = ["93", "95", "97", "diesel", "parafina"].some(t => s.precios[t]?.autoservicio > 0);
+          return { 
             ...s, 
-            id: s.id + "_asis", 
-            isAuto: false, 
-            currentPrice: pObj.asistido, 
-            isOutdated, 
-            distToUser 
-          });
-        }
-        // Si tiene precio Autoservicio, se crea como otra estación independiente
-        if (pObj && pObj.autoservicio > 0) {
-          list.push({ 
-            ...s, 
-            id: s.id + "_auto", 
-            isAuto: true, 
-            currentPrice: pObj.autoservicio, 
-            isOutdated, 
-            distToUser 
-          });
-        }
-      }
-    });
+            isOutdated: s.timestampAct === 0 || now - s.timestampAct > OUTDATED_MS,
+            distToUser,
+            hasAuto
+          };
+      });
 
     list.sort((a, b) => {
       if (a.isOutdated !== b.isOutdated) return a.isOutdated ? 1 : -1;
       if (sortBy === 'distance' && a.distToUser !== null && b.distToUser !== null) {
          return a.distToUser - b.distToUser;
       }
-      return a.currentPrice - b.currentPrice;
+      return getBestPrice(a.precios[fuelType]) - getBestPrice(b.precios[fuelType]);
     });
     
     return list;
@@ -812,6 +966,8 @@ export default function App() {
         const clickedStation = filteredStationsCarga.find((s) => s.id === clickedId);
         if (clickedStation) {
           setCurrentStation(clickedStation);
+          setShowStationModal(true);
+          setShowAllDiscounts(false);
         }
       }
     };
@@ -819,9 +975,9 @@ export default function App() {
     return () => window.removeEventListener("message", handleMessage);
   }, [filteredStationsCarga]);
 
-  // Auto-scroll a la tarjeta seleccionada
+  // Auto-scroll a la tarjeta seleccionada (Solo en layout desktop)
   useEffect(() => {
-    if (currentStation && calcMode === 'carga') {
+    if (currentStation && calcMode === 'carga' && !showStationModal && window.innerWidth >= 1024) {
       setTimeout(() => {
         const el = document.getElementById(`station-card-${currentStation.id}`);
         if (el) {
@@ -829,7 +985,7 @@ export default function App() {
         }
       }, 100);
     }
-  }, [currentStation, calcMode]);
+  }, [currentStation, calcMode, showStationModal]);
 
   useEffect(() => {
     if (calcMode === "carga" && cargaComuna && filteredStationsCarga.length > 0) {
@@ -843,12 +999,13 @@ export default function App() {
 
   useEffect(() => {
     if (calcMode === "viaje" && originCity && destCity && parseFloat(distanceKm) >= 0) {
-      const html = generateMapHtml(originCity, destCity, routeGeometry, isRoundTrip, detectedTolls.list);
+      const validWaypoints = waypoints.filter(w => w !== null);
+      const html = generateMapHtml(originCity, destCity, routeGeometry, isRoundTrip, detectedTolls.list, validWaypoints);
       const url = URL.createObjectURL(new Blob([html], { type: "text/html" }));
       setMapUrl(url);
       return () => URL.revokeObjectURL(url);
     }
-  }, [originCity, destCity, routeGeometry, distanceKm, calcMode, isRoundTrip, detectedTolls.list]);
+  }, [originCity, destCity, waypoints, routeGeometry, distanceKm, calcMode, isRoundTrip, detectedTolls.list]);
 
   useEffect(() => {
     const fetchRoute = async () => {
@@ -865,82 +1022,126 @@ export default function App() {
       setIsCalculatingRoute(true);
       setRouteError(false);
 
-      // AHORA OSRM UTILIZA overview=full PARA MÁXIMA PRECISIÓN Y NO CORTAR CURVAS
-      const endpoints = [
-        { url: "https://router.project-osrm.org/route/v1/driving", type: "osrm" },
-        { url: "https://routing.openstreetmap.de/routed-car/route/v1/driving", type: "osrm" },
-        { url: "https://api.openrouteservice.org/v2/directions/driving-car", type: "ors" }
-      ];
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000); 
 
-      try {
-        const routeResult = await Promise.any(
+      const getRouteData = async (points) => {
+        const coordsOSRM = points.map(p => `${p.lon},${p.lat}`).join(';');
+        const coordsORS = points.map(p => [p.lon, p.lat]);
+
+        const endpoints = [
+          { url: `https://router.project-osrm.org/route/v1/driving/${coordsOSRM}?overview=full&geometries=geojson`, type: "osrm" },
+          { url: `https://routing.openstreetmap.de/routed-car/route/v1/driving/${coordsOSRM}?overview=full&geometries=geojson`, type: "osrm" },
+          { url: "https://api.openrouteservice.org/v2/directions/driving-car", type: "ors", body: { coordinates: coordsORS } }
+        ];
+
+        return await Promise.any(
           endpoints.map(async (ep) => {
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 15000); 
-
-            try {
-              if (ep.type === "ors") {
-                const API_KEY = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjM5MDY2ZmJlZDhhNzRkYTZiMmVkOWI5MmI2NDcyM2Q1IiwiaCI6Im11cm11cjY0In0=";
-                const res = await fetch(ep.url, {
-                  method: "POST",
-                  headers: { "Authorization": API_KEY, "Content-Type": "application/json" },
-                  signal: controller.signal,
-                  body: JSON.stringify({ coordinates: [[originCity.lon, originCity.lat], [destCity.lon, destCity.lat]] })
-                });
-                
-                const contentType = res.headers.get("content-type");
-                if (contentType && contentType.includes("text/html")) throw new Error("Recibido HTML en vez de JSON");
-
-                if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                const data = await res.json();
-                
-                if (!data.routes || data.routes.length === 0) throw new Error("ORS no devolvió rutas");
-
-                return {
-                  geo: { coordinates: decodePolyline(data.routes[0].geometry) },
-                  dist: data.routes[0].summary.distance / 1000
-                };
-              } else {
-                const res = await fetch(`${ep.url}/${originCity.lon},${originCity.lat};${destCity.lon},${destCity.lat}?overview=full&geometries=geojson`, { signal: controller.signal });
-                
-                const contentType = res.headers.get("content-type");
-                if (contentType && contentType.includes("text/html")) throw new Error("Recibido HTML en vez de JSON");
-
-                if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                const data = await res.json();
-                if (!data.routes || data.routes.length === 0) throw new Error("Sin rutas en la respuesta");
-
-                return {
-                  geo: data.routes[0].geometry,
-                  dist: data.routes[0].distance / 1000
-                };
-              }
-            } finally {
-              clearTimeout(timeoutId);
+            if (ep.type === "ors") {
+              const API_KEY = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjM5MDY2ZmJlZDhhNzRkYTZiMmVkOWI5MmI2NDcyM2Q1IiwiaCI6Im11cm11cjY0In0=";
+              const res = await fetch(ep.url, {
+                method: "POST",
+                headers: { "Authorization": API_KEY, "Content-Type": "application/json" },
+                signal: controller.signal,
+                body: JSON.stringify(ep.body)
+              });
+              const contentType = res.headers.get("content-type");
+              if (contentType && contentType.includes("text/html")) throw new Error("Recibido HTML en vez de JSON");
+              if (!res.ok) throw new Error(`HTTP ${res.status}`);
+              const data = await res.json();
+              if (!data.routes || data.routes.length === 0) throw new Error("ORS no devolvió rutas");
+              return {
+                geo: { coordinates: decodePolyline(data.routes[0].geometry) },
+                dist: data.routes[0].summary.distance / 1000
+              };
+            } else {
+              const res = await fetch(ep.url, { signal: controller.signal });
+              const contentType = res.headers.get("content-type");
+              if (contentType && contentType.includes("text/html")) throw new Error("Recibido HTML en vez de JSON");
+              if (!res.ok) throw new Error(`HTTP ${res.status}`);
+              const data = await res.json();
+              if (!data.routes || data.routes.length === 0) throw new Error("Sin rutas en la respuesta");
+              return {
+                geo: data.routes[0].geometry,
+                dist: data.routes[0].distance / 1000
+              };
             }
           })
         );
+      };
 
-        setDistanceKm(routeResult.dist.toFixed(1));
-        setRouteGeometry(routeResult.geo);
-        const tolls = detectTollsInRoute(routeResult.geo);
-        setDetectedTolls(tolls);
+      try {
+        const validWaypoints = waypoints.filter(w => w !== null);
+        const outboundPoints = [originCity, ...validWaypoints, destCity];
+        const outboundResult = await getRouteData(outboundPoints);
+
+        let finalDist = outboundResult.dist;
+        let finalGeo = outboundResult.geo;
+        let tollsOut = detectTollsInRoute(finalGeo);
+        let finalTollsTotal = tollsOut.total;
+        let finalTollsList = tollsOut.list;
+
+        if (isRoundTrip) {
+            // El viaje de vuelta siempre es directo, ignorando las paradas
+            const returnPoints = [destCity, originCity];
+            const returnResult = await getRouteData(returnPoints);
+
+            finalDist += returnResult.dist;
+            finalGeo = {
+                type: "LineString",
+                coordinates: [...outboundResult.geo.coordinates, ...returnResult.geo.coordinates]
+            };
+            let tollsRet = detectTollsInRoute(returnResult.geo);
+            finalTollsTotal += tollsRet.total;
+            let retTollList = tollsRet.list.map(t => ({ ...t, id: t.id + '_vuelta', nombre: t.nombre + " (Vuelta)" }));
+            finalTollsList = [...finalTollsList, ...retTollList];
+        }
+
+        setDistanceKm(finalDist.toFixed(1));
+        setRouteGeometry(finalGeo);
+        setDetectedTolls({ total: finalTollsTotal, list: finalTollsList });
 
       } catch (err) {
-        const fallbackDist = calculateHaversineDistance(originCity.lat, originCity.lon, destCity.lat, destCity.lon);
-        const fakeGeometry = { coordinates: [ [originCity.lon, originCity.lat], [destCity.lon, destCity.lat] ] };
+        const validWaypoints = waypoints.filter(w => w !== null);
+        const outboundPoints = [originCity, ...validWaypoints, destCity];
+        
+        let fallbackDist = 0;
+        for(let i=0; i < outboundPoints.length - 1; i++) {
+            fallbackDist += calculateHaversineDistance(outboundPoints[i].lat, outboundPoints[i].lon, outboundPoints[i+1].lat, outboundPoints[i+1].lon);
+        }
+        let fakeGeoOut = { coordinates: outboundPoints.map(p => [p.lon, p.lat]) };
+        let tollsOut = detectTollsInRoute(fakeGeoOut);
 
-        setDistanceKm(fallbackDist.toString());
-        setRouteGeometry(fakeGeometry);
-        const tolls = detectTollsInRoute(fakeGeometry, true);
-        setDetectedTolls(tolls);
+        let finalDist = fallbackDist;
+        let finalGeo = fakeGeoOut;
+        let finalTollsTotal = tollsOut.total;
+        let finalTollsList = tollsOut.list;
+
+        if (isRoundTrip) {
+            let returnDist = calculateHaversineDistance(destCity.lat, destCity.lon, originCity.lat, originCity.lon);
+            finalDist += returnDist;
+            let fakeGeoRet = { coordinates: [[destCity.lon, destCity.lat], [originCity.lon, originCity.lat]] };
+            finalGeo = {
+                 type: "LineString",
+                 coordinates: [...fakeGeoOut.coordinates, ...fakeGeoRet.coordinates]
+            };
+            let tollsRet = detectTollsInRoute(fakeGeoRet);
+            finalTollsTotal += tollsRet.total;
+            let retTollList = tollsRet.list.map(t => ({ ...t, id: t.id + '_vuelta', nombre: t.nombre + " (Vuelta)" }));
+            finalTollsList = [...finalTollsList, ...retTollList];
+        }
+
+        setDistanceKm(finalDist.toFixed(1));
+        setRouteGeometry(finalGeo);
+        setDetectedTolls({ total: finalTollsTotal, list: finalTollsList });
         setRouteError(true);
+      } finally {
+        clearTimeout(timeoutId);
+        setIsCalculatingRoute(false);
       }
-
-      setIsCalculatingRoute(false);
     };
     fetchRoute();
-  }, [originCity, destCity, calcMode]);
+  }, [originCity, destCity, waypoints, calcMode, isRoundTrip]);
 
   useEffect(() => {
     const fetchPrecios = async () => {
@@ -977,7 +1178,13 @@ export default function App() {
           const cleanList = [];
 
           raw.forEach((s) => {
-            const distribuidorStr = s.distribuidor?.marca || s.distribuidor?.nombre || s.distribuidor || s.razon_social || "Independiente";
+            let distribuidorStr = s.distribuidor?.marca || s.distribuidor?.nombre || s.distribuidor || s.razon_social || "Independiente";
+            
+            // Reemplazo de Petrobras a Aramco según la realidad actual
+            if (distribuidorStr.toLowerCase().includes("petrobras")) {
+               distribuidorStr = "Aramco";
+            }
+
             const direccionStr = s.ubicacion?.direccion || s.direccion || s.calle || "";
             const key = `${distribuidorStr}-${direccionStr}`.toLowerCase();
 
@@ -1073,7 +1280,7 @@ export default function App() {
             actualizacion: "Hoy", regionId: "RM", regionName: "Región Metropolitana", timestampAct: Date.now(),
           },
           {
-            id: "m3", comuna: "Viña del Mar", distribuidor: "Petrobras", direccion: "Av. Libertad 456",
+            id: "m3", comuna: "Viña del Mar", distribuidor: "Aramco", direccion: "Av. Libertad 456",
             lat: -33.0153, lon: -71.5505,
             precios: { 93: { asistido: 1310 }, 95: { asistido: 1350 }, 97: { asistido: 1390 }, diesel: { asistido: 1040 }, parafina: { asistido: 940 } },
             actualizacion: "Hoy", regionId: "V", regionName: "Valparaíso", timestampAct: Date.now(),
@@ -1133,12 +1340,12 @@ export default function App() {
   }
 
   const baseDist = parseFloat(distanceKm) || 0;
-  const displayDistanceKm = isRoundTrip ? (baseDist * 2).toFixed(1) : baseDist.toFixed(1);
+  const displayDistanceKm = baseDist.toFixed(1); // La API ya suma la distancia real de ida y vuelta
   const eff = parseFloat(efficiencyKml) || 1;
 
   const litersNeeded = eff > 0 ? parseFloat(displayDistanceKm) / eff : 0;
   const bencinaTotal = litersNeeded * pricePerLiter;
-  const peajeTotal = includeTolls ? (detectedTolls.total * (isRoundTrip ? 2 : 1)) : 0;
+  const peajeTotal = includeTolls ? detectedTolls.total : 0; // detectTollsInRoute ya cuenta peajes de vuelta
   const resultValue = bencinaTotal + peajeTotal;
 
   function formatCLP(value) {
@@ -1150,6 +1357,7 @@ export default function App() {
     const temp = originCity;
     setOriginCity(destCity);
     setDestCity(temp);
+    setWaypoints([...waypoints].reverse());
   };
 
   const fuelOptionsCarga = ["93", "95", "97", "diesel", "parafina"];
@@ -1159,137 +1367,112 @@ export default function App() {
   const CargaMainContent = (
     cargaComuna && filteredStationsCarga.length > 0 && (
       <div className="flex flex-col h-full w-full animate-in fade-in duration-500 overflow-hidden lg:space-y-4">
-        {/* Title (Solo Desktop) */}
+        
+        {/* MAPA HEADER MOBILE (Ocupa todo el ancho superior tipo Uber) */}
+        <div className="lg:hidden w-full h-[35vh] min-h-[250px] shrink-0 relative bg-slate-200 z-0">
+          {stationsMapUrl ? (
+            <iframe key={`carga-map-${stationsMapUrl}-${mobileStep}`} src={stationsMapUrl} title="Mapa Estaciones" width="100%" height="100%" style={{ border: 0 }} sandbox="allow-scripts allow-same-origin" />
+          ) : (
+            <div className="absolute inset-0 flex items-center justify-center text-slate-400"><Loader2 className="w-8 h-8 animate-spin" /></div>
+          )}
+          <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm text-[10px] font-bold px-3 py-1.5 rounded-full shadow-md text-slate-700 pointer-events-none">Toca un pin para ver detalles</div>
+        </div>
+
+        {/* MAPA Y HEADER DESKTOP */}
         <div className="hidden lg:flex items-center justify-between shrink-0 pt-2">
            <div className="flex items-center gap-2">
               <h3 className="text-sm font-extrabold text-slate-800 uppercase tracking-wide">Estaciones</h3>
               <span className="text-[10px] font-bold text-slate-500 bg-slate-200 px-2 py-0.5 rounded-full">{filteredStationsCarga.length}</span>
            </div>
         </div>
-
-        {/* MAPA FIJO */}
-        <div className="w-full h-[25vh] min-h-[180px] lg:h-[350px] lg:min-h-[350px] shrink-0 lg:rounded-[2rem] overflow-hidden lg:shadow-sm lg:border-[6px] border-white relative bg-slate-200 z-0">
+        <div className="hidden lg:block w-full h-[350px] min-h-[350px] shrink-0 rounded-[2rem] overflow-hidden shadow-sm border-[6px] border-white relative bg-slate-200 z-0">
           {stationsMapUrl ? (
             <iframe key={`carga-map-${stationsMapUrl}-${mobileStep}`} src={stationsMapUrl} title="Mapa Estaciones" width="100%" height="100%" style={{ border: 0 }} sandbox="allow-scripts allow-same-origin" />
           ) : (
             <div className="absolute inset-0 flex items-center justify-center text-slate-400"><Loader2 className="w-6 h-6 animate-spin" /></div>
           )}
-          <div className="absolute top-3 left-3 bg-white/90 backdrop-blur-sm text-[10px] font-bold px-3 py-1.5 rounded-xl shadow-sm text-slate-700 pointer-events-none">Toca un pin para verla</div>
+          <div className="absolute top-3 left-3 bg-white/90 backdrop-blur-sm text-[10px] font-bold px-3 py-1.5 rounded-xl shadow-sm text-slate-700 pointer-events-none">Toca un pin para ver detalles</div>
         </div>
 
         {/* Toggle (New location) */}
-        <div className="px-4 pt-3 lg:px-0 lg:pt-0 shrink-0 flex flex-col gap-3">
+        <div className="px-5 pt-4 lg:px-0 lg:pt-0 shrink-0 flex flex-col gap-3">
            <div className="flex items-center justify-between lg:hidden">
-              <span className="text-xs font-extrabold text-slate-800 uppercase tracking-wide">{filteredStationsCarga.length} Estaciones</span>
+              <span className="text-sm font-extrabold text-slate-800 uppercase tracking-wide">{filteredStationsCarga.length} Estaciones en Lista</span>
            </div>
            {isUserNearCurrentComuna && (
-                <div className="flex bg-slate-200 p-1.5 rounded-xl w-full">
-                  <button onClick={() => setSortBy('price')} className={`flex-1 text-[13px] font-bold px-3 py-2 rounded-lg transition-colors shadow-sm cursor-pointer ${sortBy === 'price' ? 'bg-white text-slate-800' : 'text-slate-500 shadow-none hover:text-slate-700'}`}>Por Precio</button>
-                  <button onClick={() => setSortBy('distance')} className={`flex-1 text-[13px] font-bold px-3 py-2 rounded-lg transition-colors shadow-sm cursor-pointer ${sortBy === 'distance' ? 'bg-white text-slate-800' : 'text-slate-500 shadow-none hover:text-slate-700'}`}>Por Cercanía</button>
+                <div className="flex bg-slate-200 p-1.5 rounded-[1rem] w-full">
+                  <button onClick={() => setSortBy('price')} className={`flex-1 text-[13px] font-bold px-3 py-2.5 rounded-xl transition-colors shadow-sm cursor-pointer ${sortBy === 'price' ? 'bg-white text-slate-800' : 'text-slate-500 shadow-none hover:text-slate-700'}`}>Por Precio</button>
+                  <button onClick={() => setSortBy('distance')} className={`flex-1 text-[13px] font-bold px-3 py-2.5 rounded-xl transition-colors shadow-sm cursor-pointer ${sortBy === 'distance' ? 'bg-white text-slate-800' : 'text-slate-500 shadow-none hover:text-slate-700'}`}>Por Cercanía</button>
                 </div>
            )}
         </div>
 
-        {/* LISTA CON SCROLL INTERNO */}
-        <div className="flex-1 overflow-y-auto no-scrollbar px-4 pt-3 lg:px-0 lg:pt-0 pb-6 lg:pb-0 lg:pr-2 relative z-10" ref={cargaListRef}>
+        {/* LISTA CON SCROLL INTERNO LIMPIA */}
+        <div className="flex-1 overflow-y-auto no-scrollbar px-5 pt-3 lg:px-0 lg:pt-0 pb-6 lg:pb-0 lg:pr-2 relative z-10" ref={cargaListRef}>
           <div className="flex flex-col gap-3">
             {filteredStationsCarga.map((station, idx) => {
-              const isSelected = currentStation?.id === station.id;
               const isCheapest = idx === 0 && !station.isOutdated && sortBy === 'price';
-              const bestPrice = station.currentPrice;
+              const bestPrice = getBestPrice(station.precios[fuelType]);
+              
+              const brandNormalized = normalizeString(station.distribuidor);
+              let stationDiscounts = null;
+              if (brandNormalized.includes("copec")) stationDiscounts = DESCUENTOS_POR_MARCA["copec"];
+              else if (brandNormalized.includes("shell")) stationDiscounts = DESCUENTOS_POR_MARCA["shell"];
+              else if (brandNormalized.includes("aramco")) stationDiscounts = DESCUENTOS_POR_MARCA["aramco"];
+              
+              // Cálculo del ahorro por autoservicio en esta estación
+              const pObjList = station.precios[fuelType];
+              const autoPriceList = pObjList?.autoservicio || 0;
+              const asisPriceList = pObjList?.asistido || 0;
+              let autoLabelList = "Autoservicio";
+              if (autoPriceList > 0 && asisPriceList > 0 && autoPriceList < asisPriceList) {
+                autoLabelList = `Auto -$${asisPriceList - autoPriceList}`;
+              }
 
               return (
-                <div key={station.id} id={`station-card-${station.id}`} onClick={() => setCurrentStation(isSelected ? null : station)} className={`w-full shrink-0 flex flex-col p-3 rounded-[1.5rem] cursor-pointer transition-all duration-300 transform-gpu ${isSelected ? "bg-slate-900 shadow-xl ring-4 ring-slate-200" : "bg-white shadow-[0_4px_20px_rgb(0,0,0,0.03)] hover:shadow-md"}`}>
+                <div key={station.id} id={`station-card-${station.id}`} 
+                     onClick={() => { setCurrentStation(station); setShowStationModal(true); setShowAllDiscounts(false); }} 
+                     className="w-full shrink-0 flex flex-col p-4 rounded-[1.5rem] cursor-pointer transition-all duration-300 transform-gpu bg-white shadow-[0_4px_20px_rgb(0,0,0,0.03)] border border-transparent hover:border-slate-200 hover:shadow-md">
                   <div className="flex items-center justify-between">
                     <div className="flex flex-col flex-1 overflow-hidden pr-2">
-                      <div className="flex items-center space-x-2 mb-1">
+                      <div className="flex items-center space-x-2 mb-1 flex-wrap gap-y-1">
                         {station.logo ? (<img src={station.logo} alt={station.distribuidor} className="h-6 w-6 object-contain rounded-full bg-white p-0.5" onError={(e) => { e.target.style.display = "none"; e.target.nextSibling.style.display = "block"; }} />) : null}
-                        <Fuel className={`w-5 h-5 ${isSelected ? 'text-slate-300' : 'text-slate-400'}`} style={{ display: station.logo ? "none" : "block" }} />
-                        <span className={`font-black text-sm truncate ${isSelected ? 'text-white' : 'text-slate-800'}`}>{station.distribuidor}</span>
+                        <Fuel className="w-5 h-5 text-slate-400" style={{ display: station.logo ? "none" : "block" }} />
+                        <span className="font-black text-sm truncate text-slate-800">{station.distribuidor}</span>
                         {isCheapest && (
-                          <span className={`text-[10px] font-extrabold rounded-full px-1.5 py-0.5 ml-1 shrink-0 flex items-center transition-colors ${isSelected ? 'text-white bg-emerald-500' : 'text-emerald-800 bg-emerald-400/20'}`}>
+                          <span className="text-[10px] font-extrabold rounded-full px-1.5 py-0.5 shrink-0 flex items-center transition-colors text-emerald-800 bg-emerald-400/20">
                             <TrendingUp className="w-2.5 h-2.5 mr-0.5" /> Top 1
                           </span>
                         )}
-                        {station.isAuto && (
-                          <span className={`text-[9px] font-black rounded-full px-1.5 py-0.5 ml-1 shrink-0 uppercase transition-colors ${isSelected ? 'text-white bg-blue-500' : 'text-blue-700 bg-blue-100'}`}>
-                            Autoservicio
+                        {station.hasAuto && (
+                          <span className="text-[9px] font-black rounded-full px-1.5 py-0.5 shrink-0 uppercase transition-colors text-blue-700 bg-blue-100">
+                            {autoLabelList}
+                          </span>
+                        )}
+                        {stationDiscounts && (
+                          <span className="text-[9px] font-black rounded-full px-1.5 py-0.5 shrink-0 uppercase transition-colors text-rose-700 bg-rose-100">
+                            Descuentos
                           </span>
                         )}
                       </div>
-                      <span className={`text-xs truncate font-medium ${isSelected ? 'text-slate-400' : 'text-slate-500'}`} title={station.direccion}>{station.direccion}</span>
+                      <span className="text-xs truncate font-medium text-slate-500" title={station.direccion}>{station.direccion}</span>
                       <div className="flex items-center mt-2">
-                        <span className={`text-[10px] flex items-center font-bold ${station.isOutdated ? "text-red-400" : isSelected ? "text-slate-400" : "text-slate-400"}`}>
+                        <span className={`text-[10px] flex items-center font-bold ${station.isOutdated ? "text-red-400" : "text-slate-400"}`}>
                           {station.isOutdated ? <AlertCircle className="w-3 h-3 mr-1" /> : <Clock className="w-3 h-3 mr-1" />}
                           {station.isOutdated ? "Desactualizado" : station.actualizacion ? station.actualizacion.split(" ")[0] : "--"}
                         </span>
                         {station.distToUser !== null && sortBy === 'distance' && (
-                          <span className="text-[10px] font-extrabold text-blue-600 bg-blue-100/80 px-2 py-0.5 rounded-full ml-2">
+                          <span className="text-[10px] font-extrabold rounded-full px-2 py-0.5 ml-2 transition-colors text-blue-600 bg-blue-100/80">
                             A {station.distToUser.toFixed(1)} km
                           </span>
                         )}
                       </div>
                     </div>
-                    <div className="flex flex-col items-end justify-center shrink-0 pl-3 border-l border-white/10 min-w-[80px]">
-                      <span className={`text-2xl font-black tracking-tight ${isSelected ? 'text-white' : 'text-slate-900'}`}>{formatCLP(bestPrice)}</span>
-                      <span className={`text-[9px] font-bold mt-1 uppercase ${isSelected ? 'text-blue-300' : 'text-slate-400'}`}>
+                    <div className="flex flex-col items-end justify-center shrink-0 pl-3 border-l border-slate-100 min-w-[80px]">
+                      <span className="text-2xl font-black tracking-tight text-slate-900">{formatCLP(bestPrice)}</span>
+                      <span className="text-[9px] font-bold mt-1 uppercase text-slate-400">
                         {fuelType === "diesel" ? "Diesel" : fuelType === "parafina" ? "Parafina" : `${fuelType} Octanos`}
                       </span>
-                    </div>
-                  </div>
-
-                  {/* --- SECCIÓN DESPLEGABLE CON TODOS LOS PRECIOS --- */}
-                  <div className={`grid transition-all duration-500 ease-in-out ${isSelected ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}>
-                    <div className="overflow-hidden">
-                      <div className="pt-2 mt-2 border-t border-slate-700/30 flex flex-col gap-2">
-                        <div className="flex items-center justify-between">
-                           <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Todos los precios</span>
-                           <button onClick={(e) => { e.stopPropagation(); setCurrentStation(null); }} className="bg-slate-700 hover:bg-slate-600 text-slate-300 p-1 rounded-full transition-colors cursor-pointer"><X className="w-3 h-3" /></button>
-                        </div>
-                        <div className="grid grid-cols-2 gap-1.5">
-                          {["93", "95", "97", "diesel", "parafina"].map((t) => {
-                            const p = station.precios[t];
-                            const priceToShow = station.isAuto ? p?.autoservicio : p?.asistido;
-                            
-                            if (!priceToShow || priceToShow === 0) return null;
-                            
-                            const isThisFuelSelected = t === fuelType;
-                            
-                            return (
-                              <div 
-                                key={t} 
-                                className={`rounded-xl p-2 flex flex-col justify-center border transition-all text-left ${isThisFuelSelected ? 'bg-blue-600 border-blue-500 shadow-md' : 'bg-slate-800 border-slate-700'}`}
-                              >
-                                <span className={`text-[8px] font-bold uppercase mb-0.5 ${isThisFuelSelected ? 'text-blue-100' : 'text-slate-400'}`}>
-                                  {t === "diesel" ? "Diesel" : t === "parafina" ? "Parafina" : `${t} Oct`}
-                                </span>
-                                <span className="text-[12px] font-black text-white">{formatCLP(priceToShow)}</span>
-                              </div>
-                            );
-                          })}
-                        </div>
-                        <div className="flex gap-2 mt-1">
-                          <button 
-                            onClick={(e) => { 
-                              e.stopPropagation(); 
-                              setCalcFuelType(fuelType); // Inicializamos calculadora con el tipo actual
-                              setShowCalcModal(true); 
-                            }} 
-                            className="flex-1 bg-slate-700 hover:bg-slate-600 text-white rounded-xl py-2.5 text-[12px] font-extrabold flex items-center justify-center gap-1.5 shadow-md transition-colors cursor-pointer"
-                          >
-                            <Calculator className="w-3.5 h-3.5" /> Calcular
-                          </button>
-                          <a 
-                            href={`https://www.google.com/maps/dir/?api=1&destination=${station.lat},${station.lon}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            onClick={(e) => e.stopPropagation()} 
-                            className="flex-1 bg-blue-500 hover:bg-blue-400 text-white rounded-xl py-2.5 text-[12px] font-extrabold flex items-center justify-center gap-1.5 shadow-md transition-colors cursor-pointer"
-                          >
-                            <MapPin className="w-3.5 h-3.5" /> Cómo llegar
-                          </a>
-                        </div>
-                      </div>
                     </div>
                   </div>
                 </div>
@@ -1304,6 +1487,28 @@ export default function App() {
   const ViajeMainContent = (
     originCity && destCity && (
       <div className="flex flex-col h-full w-full animate-in fade-in slide-in-from-bottom-4 duration-500 overflow-hidden lg:space-y-4">
+        
+        {/* MOBILE MAPA FULL WIDHT */}
+        <div className="lg:hidden w-full h-[45vh] min-h-[300px] shrink-0 relative bg-slate-200 z-0">
+          {isCalculatingRoute ? (
+            <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-400 bg-slate-100">
+              <MapIcon className="w-8 h-8 mb-2 opacity-50" />
+              <span className="text-xs font-semibold">Trazando ruta...</span>
+            </div>
+          ) : (
+            <>
+              <iframe key={`viaje-map-${mapUrl}-${mobileStep}`} src={mapUrl} title="Mapa de la ruta" width="100%" height="100%" style={{ border: 0 }} sandbox="allow-scripts allow-same-origin" />
+              <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-white/90 backdrop-blur-md px-4 py-2.5 rounded-full shadow-lg flex items-center gap-3 z-20 cursor-pointer" onClick={() => setIsRoundTrip(!isRoundTrip)}>
+                 <span className="text-[13px] font-bold text-slate-800 whitespace-nowrap select-none">Ida y vuelta</span>
+                 <button className={`w-11 h-6 rounded-full relative transition-colors cursor-pointer ${isRoundTrip ? 'bg-blue-600' : 'bg-slate-300'}`}>
+                    <div className={`w-4 h-4 rounded-full bg-white absolute top-1 transition-transform ${isRoundTrip ? 'translate-x-6' : 'translate-x-1'}`} />
+                 </button>
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* DESKTOP HEADER & MAP */}
         <div className="hidden lg:flex items-center justify-between shrink-0 pt-2">
           <span className="text-sm font-extrabold text-slate-800 uppercase tracking-wide">Ruta calculada</span>
           {isCalculatingRoute ? (
@@ -1316,15 +1521,8 @@ export default function App() {
             </span>
           )}
         </div>
-        
-        {routeError && (
-          <div className="mx-4 mt-3 lg:mx-0 lg:mt-0 flex items-center text-[10px] text-amber-700 bg-amber-50 p-2.5 rounded-xl border border-amber-200 shrink-0">
-            <AlertCircle className="w-4 h-4 mr-2 shrink-0" />
-            Servidores GPS públicos saturados. Mostrando estimación de ruta en línea recta.
-          </div>
-        )}
 
-        <div className="flex-1 w-full lg:rounded-[2rem] overflow-hidden lg:shadow-sm lg:border-[6px] border-white bg-slate-200 relative z-0">
+        <div className="hidden lg:block flex-1 w-full rounded-[2rem] overflow-hidden shadow-sm border-[6px] border-white bg-slate-200 relative z-0">
           {isCalculatingRoute ? (
             <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-400 bg-slate-100">
               <MapIcon className="w-8 h-8 mb-2 opacity-50" />
@@ -1341,6 +1539,28 @@ export default function App() {
               </div>
             </>
           )}
+        </div>
+        
+        {/* INFO MOBILE */}
+        <div className="lg:hidden px-5 pt-4">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-extrabold text-slate-800 uppercase tracking-wide">Resumen del Viaje</span>
+              {isCalculatingRoute ? (
+                <div className="flex items-center text-blue-600 text-xs font-bold bg-blue-50 px-2 py-1 rounded-lg">
+                  <Loader2 className="w-3 h-3 animate-spin mr-1.5" /> Procesando...
+                </div>
+              ) : (
+                <span className="text-xs font-bold text-slate-600 bg-slate-200 px-2.5 py-1 rounded-lg">
+                  {displayDistanceKm} km
+                </span>
+              )}
+            </div>
+            {routeError && (
+              <div className="mt-3 flex items-center text-[10px] text-amber-700 bg-amber-50 p-2.5 rounded-xl border border-amber-200 shrink-0">
+                <AlertCircle className="w-4 h-4 mr-2 shrink-0" />
+                Servidores GPS públicos saturados. Mostrando estimación de ruta en línea recta.
+              </div>
+            )}
         </div>
       </div>
     )
@@ -1429,7 +1649,7 @@ export default function App() {
             {calcMode === "viaje" ? (
               <div className="space-y-6 pb-6 lg:pb-6">
                 
-                {/* TARJETA ORIGEN/DESTINO */}
+                {/* TARJETA ORIGEN/DESTINO/PARADAS */}
                 <div className="mx-6 mt-4 bg-white rounded-[2rem] p-4 shadow-[0_8px_30px_rgb(0,0,0,0.04)] relative">
                   <div className="absolute right-5 top-1/2 -translate-y-1/2 z-10">
                     <button onClick={handleSwapCities} className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center text-slate-500 hover:bg-slate-200 transition-colors active:scale-95 cursor-pointer">
@@ -1438,20 +1658,64 @@ export default function App() {
                   </div>
 
                   <div className="flex relative pr-12">
-                     <div className="w-10 flex flex-col items-center justify-center pt-4 pb-4 relative">
-                        <div className="w-[14px] h-[14px] rounded-full border-[3px] border-blue-500 bg-white z-10 relative"></div>
-                        <div className="absolute top-7 bottom-7 w-[2px] border-l-2 border-dashed border-slate-200 left-1/2 -translate-x-1/2"></div>
-                        <MapPin className="w-[18px] h-[18px] text-red-500 z-10 relative fill-red-100 mt-auto" />
-                     </div>
-                     <div className="flex-1 flex flex-col pl-2">
-                        <div className="relative border-b border-slate-100 pb-2">
-                           <RouteCityAutocomplete placeholder="¿Desde dónde viajas?" value={originCity} onSelect={setOriginCity} comunasData={comunasDataForRouting} />
+                     <div className="absolute top-5 bottom-5 left-5 w-[2px] border-l-2 border-dashed border-slate-200 z-0 -translate-x-1/2"></div>
+                     <div className="flex-1 flex flex-col w-full z-10">
+                        {/* ORIGEN */}
+                        <div className="flex items-center w-full">
+                           <div className="w-10 flex justify-center shrink-0">
+                              <div className="w-[14px] h-[14px] rounded-full border-[3px] border-blue-500 bg-white"></div>
+                           </div>
+                           <div className="flex-1 border-b border-slate-100 pb-2">
+                              <RouteCityAutocomplete placeholder="¿Desde dónde viajas?" value={originCity} onSelect={setOriginCity} comunasData={comunasDataForRouting} />
+                           </div>
                         </div>
-                        <div className="relative pt-2">
-                           <RouteCityAutocomplete placeholder="¿Hacia dónde vas?" value={destCity} onSelect={setDestCity} comunasData={comunasDataForRouting} />
+
+                        {/* PARADAS (WAYPOINTS) */}
+                        {waypoints.map((wp, index) => (
+                           <div key={index} className="flex items-center w-full py-2">
+                              <div className="w-10 flex justify-center shrink-0">
+                                 <div className="w-[12px] h-[12px] rounded-full border-[3px] border-amber-500 bg-white"></div>
+                              </div>
+                              <div className="flex-1 border-b border-slate-100 flex items-center pr-2">
+                                 <div className="flex-1">
+                                    <RouteCityAutocomplete hideClear placeholder={`Parada ${index + 1}...`} value={wp} onSelect={(val) => updateWaypoint(index, val)} comunasData={comunasDataForRouting} />
+                                 </div>
+                                 <div className="flex items-center ml-1">
+                                    {waypoints.length > 1 && (
+                                      <div className="flex flex-col mx-1">
+                                        <button onClick={() => moveWaypoint(index, -1)} disabled={index === 0} className="text-slate-400 hover:text-blue-600 disabled:opacity-20 p-0.5 transition-colors cursor-pointer">
+                                           <ChevronUp className="w-3.5 h-3.5" />
+                                        </button>
+                                        <button onClick={() => moveWaypoint(index, 1)} disabled={index === waypoints.length - 1} className="text-slate-400 hover:text-blue-600 disabled:opacity-20 p-0.5 transition-colors cursor-pointer">
+                                           <ChevronDown className="w-3.5 h-3.5" />
+                                        </button>
+                                      </div>
+                                    )}
+                                    <button onClick={() => removeWaypoint(index)} className="text-slate-400 hover:text-red-500 p-1.5 transition-colors cursor-pointer shrink-0 ml-1">
+                                       <X className="w-4 h-4" />
+                                    </button>
+                                 </div>
+                              </div>
+                           </div>
+                        ))}
+
+                        {/* DESTINO */}
+                        <div className="flex items-center w-full pt-2">
+                           <div className="w-10 flex justify-center shrink-0">
+                              <MapPin className="w-[18px] h-[18px] text-red-500 fill-red-100" />
+                           </div>
+                           <div className="flex-1">
+                              <RouteCityAutocomplete placeholder="¿Hacia dónde vas?" value={destCity} onSelect={setDestCity} comunasData={comunasDataForRouting} />
+                           </div>
                         </div>
                      </div>
                   </div>
+                  
+                  {waypoints.length < 3 && (
+                    <button onClick={addWaypoint} className="mt-4 mb-1 text-xs font-bold text-blue-600 bg-blue-50 py-2.5 px-3 rounded-xl w-full flex items-center justify-center gap-1 hover:bg-blue-100 transition-colors cursor-pointer border border-blue-100/50">
+                       <Plus className="w-4 h-4" /> Añadir parada
+                    </button>
+                  )}
                 </div>
 
                 {/* TARJETA VEHÍCULO / AJUSTES */}
@@ -1561,14 +1825,14 @@ export default function App() {
                      disabled={!cargaComuna || filteredStationsCarga.length === 0}
                      className="w-full bg-slate-900 text-white rounded-[1.25rem] py-4 font-extrabold text-[15px] flex items-center justify-center gap-2 shadow-xl shadow-slate-900/20 active:scale-[0.98] transition-all disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
                    >
-                     Ver Estaciones y Precios <ArrowRight className="w-5 h-5" />
+                     Ver Estaciones y Mapa <ArrowRight className="w-5 h-5" />
                    </button>
                 )}
              </div>
              <div className="hidden lg:block">
                 {calcMode === 'viaje' ? FooterContentViaje : (
                    <div className="w-full bg-slate-100 text-slate-400 rounded-[1.25rem] py-4 font-extrabold text-[15px] flex items-center justify-center gap-2 text-center">
-                      Selecciona una estación en el mapa
+                      Selecciona una estación en la lista
                    </div>
                 )}
              </div>
@@ -1618,16 +1882,192 @@ export default function App() {
              </div>
            )}
         </div>
+
+        {/* ================= MODAL DETALLE DE ESTACIÓN ================= */}
+        {showStationModal && currentStation && (
+          <div className="fixed inset-0 z-[1000] bg-slate-900/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-4 sm:p-0">
+             <div className="bg-white w-full max-w-sm sm:max-w-lg rounded-[2.5rem] shadow-2xl p-6 animate-in slide-in-from-bottom-8 duration-300 mb-4 sm:mb-0 max-h-[85vh] flex flex-col">
+                
+                {/* Header Estación */}
+                <div className="flex justify-between items-start mb-4 shrink-0">
+                  <div className="flex items-center gap-3 pr-4">
+                    {currentStation.logo ? (<img src={currentStation.logo} alt={currentStation.distribuidor} className="h-10 w-10 object-contain rounded-full bg-white border border-slate-100 p-1 shrink-0" onError={(e) => { e.target.style.display = "none"; e.target.nextSibling.style.display = "block"; }} />) : null}
+                    <Fuel className="w-8 h-8 text-slate-400 shrink-0" style={{ display: currentStation.logo ? "none" : "block" }} />
+                    <div className="flex flex-col">
+                      <h3 className="font-black text-slate-900 text-lg leading-tight">{currentStation.distribuidor}</h3>
+                      <p className="text-xs font-bold text-slate-500 leading-snug mt-0.5">{currentStation.direccion}</p>
+                    </div>
+                  </div>
+                  <button onClick={() => setShowStationModal(false)} className="bg-slate-100 p-2 rounded-full hover:bg-slate-200 transition-colors cursor-pointer shrink-0">
+                     <X className="w-5 h-5 text-slate-600"/>
+                  </button>
+               </div>
+
+               <div className="overflow-y-auto no-scrollbar flex-1 pb-2">
+                 
+                 {/* Auto/Asis Toggle si ambos existen */}
+                 {(() => {
+                    const pBase = currentStation.precios[fuelType];
+                    const hasAuto = ["93", "95", "97", "diesel", "parafina"].some(t => currentStation.precios[t]?.autoservicio > 0);
+                    const hasAsis = ["93", "95", "97", "diesel", "parafina"].some(t => currentStation.precios[t]?.asistido > 0);
+                    
+                    if (hasAuto && hasAsis) {
+                      const diffBase = (pBase?.autoservicio > 0 && pBase?.asistido > 0 && pBase.autoservicio < pBase.asistido) ? (pBase.asistido - pBase.autoservicio) : 0;
+                      return (
+                        <div className="mb-4">
+                          <div className="flex bg-slate-200/60 p-1.5 rounded-xl">
+                            <button onClick={()=>setServiceMode("asistido")} className={`flex-1 text-[13px] font-bold py-2.5 rounded-lg transition-all cursor-pointer ${serviceMode === 'asistido' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>👨‍🔧 Asistido</button>
+                            <button onClick={()=>setServiceMode("autoservicio")} className={`flex-1 text-[13px] font-bold py-2.5 rounded-lg transition-all cursor-pointer flex justify-center items-center ${serviceMode === 'autoservicio' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                              ⛽ Auto {diffBase > 0 ? <span className="text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-md ml-1 text-[10px]">-$ {diffBase}</span> : ''}
+                            </button>
+                          </div>
+                          <div className="mt-2 text-[10px] text-slate-500 flex items-start gap-1 leading-tight px-1">
+                              <Info className="w-3.5 h-3.5 shrink-0 text-blue-500" />
+                              <span><b>Autoservicio:</b> Tú cargas el combustible (más barato). <b>Asistido:</b> Un atendedor realiza la carga.</span>
+                          </div>
+                        </div>
+                      )
+                    }
+                    return null;
+                 })()}
+
+                 {/* Grilla de Precios puros */}
+                 <div className="mb-6">
+                   <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-3">Todos los precios ({serviceMode})</h4>
+                   <div className="grid grid-cols-2 gap-2">
+                      {["93", "95", "97", "diesel", "parafina"].map((t) => {
+                        const p = currentStation.precios[t];
+                        const priceToShow = p?.[serviceMode];
+                        if (!priceToShow || priceToShow === 0) return null;
+                        const isThisFuelSelected = t === fuelType;
+                        
+                        return (
+                          <div key={t} className={`rounded-xl p-3 flex justify-between items-center border ${isThisFuelSelected ? 'bg-blue-50 border-blue-200' : 'bg-white border-slate-200'}`}>
+                            <span className={`text-[11px] font-bold uppercase ${isThisFuelSelected ? 'text-blue-700' : 'text-slate-500'}`}>
+                              {t === "diesel" ? "Diesel" : t === "parafina" ? "Paraf" : `${t} Oct`}
+                            </span>
+                            <span className={`text-[15px] font-black ${isThisFuelSelected ? 'text-blue-700' : 'text-slate-900'}`}>{formatCLP(priceToShow)}</span>
+                          </div>
+                        );
+                      })}
+                   </div>
+                 </div>
+
+                 {/* Descuentos (Acordeón inteligente) */}
+                 {(() => {
+                    const brandNormalized = normalizeString(currentStation.distribuidor);
+                    let stationDiscounts = null;
+                    if (brandNormalized.includes("copec")) stationDiscounts = DESCUENTOS_POR_MARCA["copec"];
+                    else if (brandNormalized.includes("shell")) stationDiscounts = DESCUENTOS_POR_MARCA["shell"];
+                    else if (brandNormalized.includes("aramco") || brandNormalized.includes("petrobras")) stationDiscounts = DESCUENTOS_POR_MARCA["aramco"];
+
+                    if (!stationDiscounts) return null;
+
+                    const dayIndex = new Date().getDay();
+                    const days = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
+                    const todayStr = days[dayIndex];
+
+                    const isDiscountToday = (diaStr) => {
+                       if (diaStr === "Todos los días") return true;
+                       if (diaStr === todayStr) return true;
+                       if (diaStr === "Lun-Vie" && dayIndex >= 1 && dayIndex <= 5) return true;
+                       if (diaStr === "Lun y Mar" && (dayIndex === 1 || dayIndex === 2)) return true;
+                       return false;
+                    };
+
+                    const todayDiscounts = stationDiscounts.filter(d => isDiscountToday(d.dia));
+                    const otherDiscounts = stationDiscounts.filter(d => !isDiscountToday(d.dia));
+
+                    return (
+                      <div className="mb-2">
+                        <h4 className="text-[11px] font-black text-rose-600 uppercase tracking-widest flex items-center gap-1 mb-3">
+                          <Tag className="w-3.5 h-3.5" /> Promociones vigentes
+                        </h4>
+
+                        {todayDiscounts.length > 0 ? (
+                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 mb-3">
+                             {todayDiscounts.map((d, i) => (
+                               <div key={`today-${i}`} className="rounded-[1rem] p-3 flex items-start gap-2.5 shadow-sm border bg-rose-500 border-rose-600">
+                                  <div className="p-2 rounded-lg shrink-0 mt-0.5 bg-white/20 text-white">
+                                     <Tag className="w-4 h-4" />
+                                  </div>
+                                  <div className="flex flex-col w-full">
+                                     <div className="flex justify-between items-center mb-0.5 gap-2">
+                                         <span className="text-[11px] font-black leading-none text-rose-50">{d.dia}</span>
+                                         <span className="text-[9px] font-black bg-white text-rose-600 px-1.5 py-0.5 rounded-full shadow-sm animate-pulse leading-none shrink-0">¡HOY!</span>
+                                     </div>
+                                     <span className="text-[11px] font-medium leading-snug text-white">{d.desc}</span>
+                                  </div>
+                               </div>
+                             ))}
+                           </div>
+                        ) : (
+                           <p className="text-xs font-medium text-slate-500 mb-4 px-1">No hay promociones aplicables para el día de hoy en esta estación.</p>
+                        )}
+
+                        {otherDiscounts.length > 0 && (
+                           <div className="flex flex-col gap-2">
+                             <button 
+                               onClick={() => setShowAllDiscounts(!showAllDiscounts)}
+                               className="text-[11px] font-extrabold text-rose-700 hover:text-rose-800 flex items-center justify-center w-full py-2.5 bg-rose-50 rounded-xl transition-colors cursor-pointer"
+                             >
+                               {showAllDiscounts ? 'Ocultar otros descuentos' : `Ver ${otherDiscounts.length} descuentos de otros días`}
+                               <ChevronDown className={`w-3 h-3 ml-1 transition-transform ${showAllDiscounts ? 'rotate-180' : ''}`} />
+                             </button>
+
+                             {showAllDiscounts && (
+                               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 mt-1 animate-in fade-in slide-in-from-top-2">
+                                 {otherDiscounts.map((d, i) => (
+                                   <div key={`other-${i}`} className="rounded-[1rem] p-3 flex items-start gap-2.5 border bg-rose-50/50 border-rose-100">
+                                      <div className="p-2 rounded-lg shrink-0 mt-0.5 bg-rose-100 text-rose-600">
+                                         <Tag className="w-4 h-4" />
+                                      </div>
+                                      <div className="flex flex-col w-full">
+                                         <span className="text-[11px] font-black leading-none text-rose-900 mb-1">{d.dia}</span>
+                                         <span className="text-[11px] font-medium leading-snug text-slate-600">{d.desc}</span>
+                                      </div>
+                                   </div>
+                                 ))}
+                               </div>
+                             )}
+                           </div>
+                        )}
+                      </div>
+                    );
+                 })()}
+               </div>
+
+               {/* Botones de acción */}
+               <div className="flex gap-2 mt-2 shrink-0 border-t border-slate-100 pt-4">
+                  <button 
+                    onClick={() => { setShowStationModal(false); setCalcFuelType(fuelType); setShowCalcModal(true); }} 
+                    className="flex-1 bg-slate-900 text-white rounded-xl py-3.5 text-[13px] font-extrabold flex items-center justify-center gap-2 shadow-xl shadow-slate-900/20 transition-all active:scale-95 cursor-pointer"
+                  >
+                    <Calculator className="w-4 h-4" /> Calcular Carga
+                  </button>
+                  <a 
+                    href={`https://www.google.com/maps/dir/?api=1&destination=${currentStation.lat},${currentStation.lon}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex-1 bg-blue-600 text-white rounded-xl py-3.5 text-[13px] font-extrabold flex items-center justify-center gap-2 shadow-xl shadow-blue-600/20 transition-all active:scale-95 cursor-pointer"
+                  >
+                    <MapPin className="w-4 h-4" /> Cómo llegar
+                  </a>
+               </div>
+
+             </div>
+          </div>
+        )}
         
-        {/* ================= MODAL CALCULADORA CARGA (NUEVO) ================= */}
+        {/* ================= MODAL CALCULADORA CARGA ================= */}
         {showCalcModal && currentStation && (
           <div className="fixed inset-0 z-[1000] bg-slate-900/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-4 sm:p-0">
-             <div className="bg-white w-full max-w-sm rounded-[2.5rem] shadow-2xl p-6 animate-in slide-in-from-bottom-8 duration-300 mb-4 sm:mb-0">
+             <div className="bg-white w-full max-w-sm sm:max-w-lg rounded-[2.5rem] shadow-2xl p-6 animate-in slide-in-from-bottom-8 duration-300 mb-4 sm:mb-0">
                <div className="flex justify-between items-center mb-4">
                   <h3 className="font-black text-slate-900 flex items-center text-xl">
                      <Calculator className="w-6 h-6 mr-2 text-slate-900"/> Calculadora
                   </h3>
-                  <button onClick={() => {setShowCalcModal(false); setCalcVal("");}} className="bg-slate-100 p-2 rounded-full hover:bg-slate-200 transition-colors cursor-pointer">
+                  <button onClick={() => {setShowCalcModal(false); setCurrentStation(null); setCalcVal("");}} className="bg-slate-100 p-2 rounded-full hover:bg-slate-200 transition-colors cursor-pointer">
                      <X className="w-5 h-5 text-slate-600"/>
                   </button>
                </div>
@@ -1635,7 +2075,7 @@ export default function App() {
                <div className="mb-4">
                  <div className="flex items-center gap-2 mb-0.5">
                    <p className="text-sm font-bold text-slate-700">{currentStation.distribuidor}</p>
-                   {currentStation.isAuto && <span className="text-[9px] font-black text-blue-600 bg-blue-100 px-1.5 py-0.5 rounded-full uppercase">Autoservicio</span>}
+                   <span className="text-[9px] font-black text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded-full uppercase border border-slate-200">{serviceMode}</span>
                  </div>
                  <p className="text-xs text-slate-500">{currentStation.direccion}</p>
                </div>
@@ -1643,8 +2083,7 @@ export default function App() {
                {/* Selector de combustible Aislado (Solo para la calculadora) */}
                <div className="flex flex-wrap gap-1.5 mb-4">
                  {["93", "95", "97", "diesel", "parafina"].map(t => {
-                    const p = currentStation.precios[t];
-                    const priceForT = currentStation.isAuto ? p?.autoservicio : p?.asistido;
+                    const priceForT = currentStation.precios[t]?.[serviceMode];
                     if(!priceForT || priceForT === 0) return null;
                     const isSel = t === calcFuelType;
                     return (
@@ -1672,7 +2111,7 @@ export default function App() {
                   </span>
                   <span className="text-3xl font-black text-slate-900">
                     {(() => {
-                       const p = currentStation.isAuto ? currentStation.precios[calcFuelType]?.autoservicio : currentStation.precios[calcFuelType]?.asistido;
+                       const p = currentStation.precios[calcFuelType]?.[serviceMode];
                        const v = parseFloat(calcVal) || 0;
                        if (!p || p === 0) return "---";
                        if (calcUnit === "money") {
@@ -1684,9 +2123,14 @@ export default function App() {
                   </span>
                </div>
                
-               <button onClick={() => {setShowCalcModal(false); setCalcVal("");}} className="mt-4 w-full bg-slate-900 text-white py-4 rounded-[1.25rem] font-bold text-[15px] active:scale-95 transition-transform shadow-xl shadow-slate-900/20 cursor-pointer">
-                  Cerrar
-               </button>
+               <div className="flex gap-2 mt-4">
+                  <button onClick={() => {setShowCalcModal(false); setShowStationModal(true); setCalcVal("");}} className="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 py-4 rounded-[1.25rem] font-bold text-[14px] active:scale-95 transition-colors cursor-pointer flex items-center justify-center gap-2">
+                     <ChevronLeft className="w-4 h-4" /> Volver
+                  </button>
+                  <button onClick={() => {setShowCalcModal(false); setCurrentStation(null); setCalcVal("");}} className="flex-1 bg-slate-900 text-white py-4 rounded-[1.25rem] font-bold text-[14px] active:scale-95 transition-transform shadow-xl shadow-slate-900/20 cursor-pointer">
+                     Cerrar
+                  </button>
+               </div>
              </div>
           </div>
         )}
@@ -1724,7 +2168,7 @@ export default function App() {
                   <div className="flex justify-between items-end mb-6">
                      <div className="flex flex-col">
                        <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">Total Peajes</span>
-                       {isRoundTrip && <span className="text-[10px] font-black text-blue-600 bg-blue-100 px-2 py-0.5 rounded-md mt-1.5 w-fit">IDA Y VUELTA (x2)</span>}
+                       {isRoundTrip && <span className="text-[10px] font-black text-blue-600 bg-blue-100 px-2 py-0.5 rounded-md mt-1.5 w-fit">IDA Y VUELTA (Ruta Directa)</span>}
                      </div>
                      <span className="text-3xl font-black text-slate-900 leading-none">{formatCLP(peajeTotal)}</span>
                   </div>
