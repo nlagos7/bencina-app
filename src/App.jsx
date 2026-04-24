@@ -535,7 +535,7 @@ const RouteCityAutocomplete = ({ placeholder, value, onSelect, comunasData, isOr
       {isLoadingCoords ? (
         <Loader2 className="absolute right-2 top-2.5 w-4 h-4 text-blue-500 animate-spin" />
       ) : value && value.mainName === query ? (
-        <button type="button" onMouseDown={(e) => { e.preventDefault(); setQuery(""); onSelect(null); setIsOpen(true); }} className="absolute right-2 top-2.5 text-slate-400 hover:text-red-500 transition-colors">
+        <button type="button" onMouseDown={(e) => { e.preventDefault(); setQuery(""); onSelect(null); setIsOpen(true); }} className="absolute right-2 top-2.5 text-slate-400 hover:text-red-500 transition-colors cursor-pointer">
           <X className="w-4 h-4" />
         </button>
       ) : (
@@ -599,7 +599,7 @@ const ComunaAutocomplete = ({ placeholder, value, onSelect, comunas }) => {
         className="w-full py-4 pl-4 pr-10 text-[18px] font-bold text-slate-800 bg-transparent outline-none placeholder:text-slate-400 placeholder:font-medium"
       />
       {value === query && value !== "" ? (
-        <button type="button" onMouseDown={(e) => { e.preventDefault(); setQuery(""); onSelect(""); setIsOpen(true); }} className="absolute right-4 top-4 text-blue-500 hover:text-red-500 transition-colors">
+        <button type="button" onMouseDown={(e) => { e.preventDefault(); setQuery(""); onSelect(""); setIsOpen(true); }} className="absolute right-4 top-4 text-blue-500 hover:text-red-500 transition-colors cursor-pointer">
           <X className="w-5 h-5" />
         </button>
       ) : (
@@ -623,7 +623,7 @@ const ComunaAutocomplete = ({ placeholder, value, onSelect, comunas }) => {
 };
 
 export default function App() {
-  const [calcMode, setCalcMode] = useState("viaje");
+  const [calcMode, setCalcMode] = useState("carga");
   
   // ================= ESTADOS CON PERSISTENCIA (LOCALSTORAGE) =================
   const [fuelType, setFuelType] = useState(() => localStorage.getItem('bencinaapp_fuel') || "93");
@@ -633,6 +633,7 @@ export default function App() {
 
   // Paginación y control Mobile
   const [mobileStep, setMobileStep] = useState(1);
+  const cargaListRef = useRef(null);
 
   // Modales
   const [showSettingsModal, setShowSettingsModal] = useState(false);
@@ -644,6 +645,7 @@ export default function App() {
   const [showCalcModal, setShowCalcModal] = useState(false);
   const [calcVal, setCalcVal] = useState("");
   const [calcUnit, setCalcUnit] = useState("money"); // 'money' or 'liters'
+  const [calcFuelType, setCalcFuelType] = useState(fuelType); // Aislado para el popup
 
   const [distanceKm, setDistanceKm] = useState("0");
   const [isRoundTrip, setIsRoundTrip] = useState(false);
@@ -672,9 +674,16 @@ export default function App() {
   const [detectedTolls, setDetectedTolls] = useState({ total: 0, list: [] });
   const [showTollsModal, setShowTollsModal] = useState(false);
 
+  // Scrollea la lista al tope y cierra estación seleccionada cuando hay un cambio de búsqueda principal
+  useEffect(() => {
+    setCurrentStation(null);
+    if (cargaListRef.current) {
+       cargaListRef.current.scrollTop = 0;
+    }
+  }, [cargaComuna, fuelType, sortBy]);
+
   const handleSelectComuna = (c) => {
     setCargaComuna(c);
-    setCurrentStation(null);
     setSortBy('price'); 
     if (c) {
       const updatedRecents = [c, ...recentComunas.filter(rc => rc !== c)].slice(0, 3);
@@ -726,20 +735,45 @@ export default function App() {
     if (!cargaComuna) return [];
     const now = Date.now();
     const OUTDATED_MS = 7 * 24 * 60 * 60 * 1000;
-    let list = cneStations
-      .filter((s) => s.comuna === cargaComuna && getBestPrice(s.precios[fuelType]) > 0)
-      .map((s) => ({ 
-          ...s, 
-          isOutdated: s.timestampAct === 0 || now - s.timestampAct > OUTDATED_MS,
-          distToUser: userLocation ? getStraightLineDistance(userLocation.lat, userLocation.lon, s.lat, s.lon) : null
-      }));
+    let list = [];
+    
+    cneStations.forEach((s) => {
+      if (s.comuna === cargaComuna) {
+        const pObj = s.precios[fuelType];
+        const isOutdated = s.timestampAct === 0 || now - s.timestampAct > OUTDATED_MS;
+        const distToUser = userLocation ? getStraightLineDistance(userLocation.lat, userLocation.lon, s.lat, s.lon) : null;
+        
+        // Si tiene precio Asistido, se crea como una estación independiente
+        if (pObj && pObj.asistido > 0) {
+          list.push({ 
+            ...s, 
+            id: s.id + "_asis", 
+            isAuto: false, 
+            currentPrice: pObj.asistido, 
+            isOutdated, 
+            distToUser 
+          });
+        }
+        // Si tiene precio Autoservicio, se crea como otra estación independiente
+        if (pObj && pObj.autoservicio > 0) {
+          list.push({ 
+            ...s, 
+            id: s.id + "_auto", 
+            isAuto: true, 
+            currentPrice: pObj.autoservicio, 
+            isOutdated, 
+            distToUser 
+          });
+        }
+      }
+    });
 
     list.sort((a, b) => {
       if (a.isOutdated !== b.isOutdated) return a.isOutdated ? 1 : -1;
       if (sortBy === 'distance' && a.distToUser !== null && b.distToUser !== null) {
          return a.distToUser - b.distToUser;
       }
-      return getBestPrice(a.precios[fuelType]) - getBestPrice(b.precios[fuelType]);
+      return a.currentPrice - b.currentPrice;
     });
     
     return list;
@@ -1124,9 +1158,9 @@ export default function App() {
   
   const CargaMainContent = (
     cargaComuna && filteredStationsCarga.length > 0 && (
-      <div className="flex flex-col h-full w-full animate-in fade-in duration-500 overflow-hidden space-y-3 lg:space-y-4">
-        {/* Title */}
-        <div className="flex items-center justify-between shrink-0 lg:pt-0 pt-1">
+      <div className="flex flex-col h-full w-full animate-in fade-in duration-500 overflow-hidden lg:space-y-4">
+        {/* Title (Solo Desktop) */}
+        <div className="hidden lg:flex items-center justify-between shrink-0 pt-2">
            <div className="flex items-center gap-2">
               <h3 className="text-sm font-extrabold text-slate-800 uppercase tracking-wide">Estaciones</h3>
               <span className="text-[10px] font-bold text-slate-500 bg-slate-200 px-2 py-0.5 rounded-full">{filteredStationsCarga.length}</span>
@@ -1134,7 +1168,7 @@ export default function App() {
         </div>
 
         {/* MAPA FIJO */}
-        <div className="w-full h-[220px] lg:h-[350px] lg:min-h-[350px] shrink-0 rounded-[1.5rem] lg:rounded-[2rem] overflow-hidden shadow-sm border-[4px] lg:border-[6px] border-white relative bg-slate-200">
+        <div className="w-full h-[25vh] min-h-[180px] lg:h-[350px] lg:min-h-[350px] shrink-0 lg:rounded-[2rem] overflow-hidden lg:shadow-sm lg:border-[6px] border-white relative bg-slate-200 z-0">
           {stationsMapUrl ? (
             <iframe key={`carga-map-${stationsMapUrl}-${mobileStep}`} src={stationsMapUrl} title="Mapa Estaciones" width="100%" height="100%" style={{ border: 0 }} sandbox="allow-scripts allow-same-origin" />
           ) : (
@@ -1144,24 +1178,28 @@ export default function App() {
         </div>
 
         {/* Toggle (New location) */}
-        {isUserNearCurrentComuna && (
-             <div className="flex bg-slate-200 p-1.5 rounded-xl shrink-0">
-               <button onClick={() => setSortBy('price')} className={`flex-1 text-[13px] font-bold px-3 py-2 rounded-lg transition-colors shadow-sm ${sortBy === 'price' ? 'bg-white text-slate-800' : 'text-slate-500 shadow-none hover:text-slate-700'}`}>Por Precio</button>
-               <button onClick={() => setSortBy('distance')} className={`flex-1 text-[13px] font-bold px-3 py-2 rounded-lg transition-colors shadow-sm ${sortBy === 'distance' ? 'bg-white text-slate-800' : 'text-slate-500 shadow-none hover:text-slate-700'}`}>Por Cercanía</button>
-             </div>
-        )}
+        <div className="px-4 pt-3 lg:px-0 lg:pt-0 shrink-0 flex flex-col gap-3">
+           <div className="flex items-center justify-between lg:hidden">
+              <span className="text-xs font-extrabold text-slate-800 uppercase tracking-wide">{filteredStationsCarga.length} Estaciones</span>
+           </div>
+           {isUserNearCurrentComuna && (
+                <div className="flex bg-slate-200 p-1.5 rounded-xl w-full">
+                  <button onClick={() => setSortBy('price')} className={`flex-1 text-[13px] font-bold px-3 py-2 rounded-lg transition-colors shadow-sm cursor-pointer ${sortBy === 'price' ? 'bg-white text-slate-800' : 'text-slate-500 shadow-none hover:text-slate-700'}`}>Por Precio</button>
+                  <button onClick={() => setSortBy('distance')} className={`flex-1 text-[13px] font-bold px-3 py-2 rounded-lg transition-colors shadow-sm cursor-pointer ${sortBy === 'distance' ? 'bg-white text-slate-800' : 'text-slate-500 shadow-none hover:text-slate-700'}`}>Por Cercanía</button>
+                </div>
+           )}
+        </div>
 
         {/* LISTA CON SCROLL INTERNO */}
-        <div className="flex-1 overflow-y-auto no-scrollbar pb-6 lg:pb-0 lg:pr-2">
+        <div className="flex-1 overflow-y-auto no-scrollbar px-4 pt-3 lg:px-0 lg:pt-0 pb-6 lg:pb-0 lg:pr-2 relative z-10" ref={cargaListRef}>
           <div className="flex flex-col gap-3">
             {filteredStationsCarga.map((station, idx) => {
               const isSelected = currentStation?.id === station.id;
               const isCheapest = idx === 0 && !station.isOutdated && sortBy === 'price';
-              const pObj = station.precios[fuelType];
-              const bestPrice = getBestPrice(pObj);
+              const bestPrice = station.currentPrice;
 
               return (
-                <div key={station.id} id={`station-card-${station.id}`} onClick={() => setCurrentStation(isSelected ? null : station)} className={`w-full shrink-0 flex flex-col p-3.5 rounded-[1.5rem] cursor-pointer transition-all duration-300 transform-gpu ${isSelected ? "bg-slate-900 shadow-xl ring-4 ring-slate-200" : "bg-white shadow-[0_4px_20px_rgb(0,0,0,0.03)] hover:shadow-md"}`}>
+                <div key={station.id} id={`station-card-${station.id}`} onClick={() => setCurrentStation(isSelected ? null : station)} className={`w-full shrink-0 flex flex-col p-3 rounded-[1.5rem] cursor-pointer transition-all duration-300 transform-gpu ${isSelected ? "bg-slate-900 shadow-xl ring-4 ring-slate-200" : "bg-white shadow-[0_4px_20px_rgb(0,0,0,0.03)] hover:shadow-md"}`}>
                   <div className="flex items-center justify-between">
                     <div className="flex flex-col flex-1 overflow-hidden pr-2">
                       <div className="flex items-center space-x-2 mb-1">
@@ -1169,8 +1207,13 @@ export default function App() {
                         <Fuel className={`w-5 h-5 ${isSelected ? 'text-slate-300' : 'text-slate-400'}`} style={{ display: station.logo ? "none" : "block" }} />
                         <span className={`font-black text-sm truncate ${isSelected ? 'text-white' : 'text-slate-800'}`}>{station.distribuidor}</span>
                         {isCheapest && (
-                          <span className={`text-[10px] font-extrabold rounded-full px-1.5 py-0.5 ml-1 shrink-0 flex items-center transition-colors ${isSelected ? 'text-emerald-300 bg-emerald-400/20' : 'text-emerald-800 bg-emerald-400/20'}`}>
+                          <span className={`text-[10px] font-extrabold rounded-full px-1.5 py-0.5 ml-1 shrink-0 flex items-center transition-colors ${isSelected ? 'text-white bg-emerald-500' : 'text-emerald-800 bg-emerald-400/20'}`}>
                             <TrendingUp className="w-2.5 h-2.5 mr-0.5" /> Top 1
+                          </span>
+                        )}
+                        {station.isAuto && (
+                          <span className={`text-[9px] font-black rounded-full px-1.5 py-0.5 ml-1 shrink-0 uppercase transition-colors ${isSelected ? 'text-white bg-blue-500' : 'text-blue-700 bg-blue-100'}`}>
+                            Autoservicio
                           </span>
                         )}
                       </div>
@@ -1201,48 +1244,38 @@ export default function App() {
                       <div className="pt-2 mt-2 border-t border-slate-700/30 flex flex-col gap-2">
                         <div className="flex items-center justify-between">
                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Todos los precios</span>
-                           <button onClick={(e) => { e.stopPropagation(); setCurrentStation(null); }} className="bg-slate-700 hover:bg-slate-600 text-slate-300 p-1 rounded-full transition-colors"><X className="w-3 h-3" /></button>
+                           <button onClick={(e) => { e.stopPropagation(); setCurrentStation(null); }} className="bg-slate-700 hover:bg-slate-600 text-slate-300 p-1 rounded-full transition-colors cursor-pointer"><X className="w-3 h-3" /></button>
                         </div>
                         <div className="grid grid-cols-2 gap-1.5">
                           {["93", "95", "97", "diesel", "parafina"].map((t) => {
                             const p = station.precios[t];
-                            const auto = p?.autoservicio || 0;
-                            const asis = p?.asistido || 0;
-                            const bestP = getBestPrice(p);
+                            const priceToShow = station.isAuto ? p?.autoservicio : p?.asistido;
                             
-                            if (bestP === 0) return null;
+                            if (!priceToShow || priceToShow === 0) return null;
                             
                             const isThisFuelSelected = t === fuelType;
                             
                             return (
-                              <button 
+                              <div 
                                 key={t} 
-                                onClick={(e) => { 
-                                  e.stopPropagation(); 
-                                  setFuelType(t); 
-                                  localStorage.setItem('bencinaapp_fuel', t); 
-                                }}
-                                className={`rounded-xl p-2 flex flex-col justify-center border transition-all text-left ${isThisFuelSelected ? 'bg-blue-600 border-blue-500 scale-[1.02] shadow-md' : 'bg-slate-800 border-slate-700 hover:bg-slate-700 active:scale-95'}`}
+                                className={`rounded-xl p-2 flex flex-col justify-center border transition-all text-left ${isThisFuelSelected ? 'bg-blue-600 border-blue-500 shadow-md' : 'bg-slate-800 border-slate-700'}`}
                               >
                                 <span className={`text-[8px] font-bold uppercase mb-0.5 ${isThisFuelSelected ? 'text-blue-100' : 'text-slate-400'}`}>
                                   {t === "diesel" ? "Diesel" : t === "parafina" ? "Parafina" : `${t} Oct`}
                                 </span>
-                                {auto > 0 && asis > 0 && auto !== asis ? (
-                                  <div className="flex flex-col">
-                                    <span className="text-[10px] font-black text-white" title="Autoservicio">Auto: {formatCLP(auto)}</span>
-                                    <span className={`text-[9px] font-bold ${isThisFuelSelected ? 'text-blue-200' : 'text-slate-400'}`} title="Asistido">Asis: {formatCLP(asis)}</span>
-                                  </div>
-                                ) : (
-                                  <span className="text-[12px] font-black text-white">{formatCLP(bestP)}</span>
-                                )}
-                              </button>
+                                <span className="text-[12px] font-black text-white">{formatCLP(priceToShow)}</span>
+                              </div>
                             );
                           })}
                         </div>
                         <div className="flex gap-2 mt-1">
                           <button 
-                            onClick={(e) => { e.stopPropagation(); setShowCalcModal(true); }} 
-                            className="flex-1 bg-slate-700 hover:bg-slate-600 text-white rounded-xl py-2.5 text-[12px] font-extrabold flex items-center justify-center gap-1.5 shadow-md transition-colors"
+                            onClick={(e) => { 
+                              e.stopPropagation(); 
+                              setCalcFuelType(fuelType); // Inicializamos calculadora con el tipo actual
+                              setShowCalcModal(true); 
+                            }} 
+                            className="flex-1 bg-slate-700 hover:bg-slate-600 text-white rounded-xl py-2.5 text-[12px] font-extrabold flex items-center justify-center gap-1.5 shadow-md transition-colors cursor-pointer"
                           >
                             <Calculator className="w-3.5 h-3.5" /> Calcular
                           </button>
@@ -1251,7 +1284,7 @@ export default function App() {
                             target="_blank"
                             rel="noopener noreferrer"
                             onClick={(e) => e.stopPropagation()} 
-                            className="flex-1 bg-blue-500 hover:bg-blue-400 text-white rounded-xl py-2.5 text-[12px] font-extrabold flex items-center justify-center gap-1.5 shadow-md transition-colors"
+                            className="flex-1 bg-blue-500 hover:bg-blue-400 text-white rounded-xl py-2.5 text-[12px] font-extrabold flex items-center justify-center gap-1.5 shadow-md transition-colors cursor-pointer"
                           >
                             <MapPin className="w-3.5 h-3.5" /> Cómo llegar
                           </a>
@@ -1270,8 +1303,8 @@ export default function App() {
 
   const ViajeMainContent = (
     originCity && destCity && (
-      <div className="flex flex-col h-full w-full animate-in fade-in slide-in-from-bottom-4 duration-500 overflow-hidden space-y-3 lg:space-y-4">
-        <div className="flex items-center justify-between shrink-0">
+      <div className="flex flex-col h-full w-full animate-in fade-in slide-in-from-bottom-4 duration-500 overflow-hidden lg:space-y-4">
+        <div className="hidden lg:flex items-center justify-between shrink-0 pt-2">
           <span className="text-sm font-extrabold text-slate-800 uppercase tracking-wide">Ruta calculada</span>
           {isCalculatingRoute ? (
             <div className="flex items-center text-blue-600 text-xs font-bold bg-blue-50 px-2 py-1 rounded-lg">
@@ -1285,13 +1318,13 @@ export default function App() {
         </div>
         
         {routeError && (
-          <div className="flex items-center text-[10px] text-amber-700 bg-amber-50 p-2.5 rounded-xl border border-amber-200 shrink-0">
+          <div className="mx-4 mt-3 lg:mx-0 lg:mt-0 flex items-center text-[10px] text-amber-700 bg-amber-50 p-2.5 rounded-xl border border-amber-200 shrink-0">
             <AlertCircle className="w-4 h-4 mr-2 shrink-0" />
             Servidores GPS públicos saturados. Mostrando estimación de ruta en línea recta.
           </div>
         )}
 
-        <div className="flex-1 w-full rounded-[1.5rem] lg:rounded-[2rem] overflow-hidden shadow-sm border-[4px] lg:border-[6px] border-white bg-slate-200 relative">
+        <div className="flex-1 w-full lg:rounded-[2rem] overflow-hidden lg:shadow-sm lg:border-[6px] border-white bg-slate-200 relative z-0">
           {isCalculatingRoute ? (
             <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-400 bg-slate-100">
               <MapIcon className="w-8 h-8 mb-2 opacity-50" />
@@ -1302,7 +1335,7 @@ export default function App() {
               <iframe key={`viaje-map-${mapUrl}-${mobileStep}`} src={mapUrl} title="Mapa de la ruta" width="100%" height="100%" style={{ border: 0 }} sandbox="allow-scripts allow-same-origin" />
               <div className="absolute bottom-3 left-1/2 -translate-x-1/2 bg-white/90 backdrop-blur-md px-4 py-2.5 rounded-full shadow-lg flex items-center gap-3 z-20 cursor-pointer" onClick={() => setIsRoundTrip(!isRoundTrip)}>
                  <span className="text-[13px] font-bold text-slate-800 whitespace-nowrap select-none">Ida y vuelta</span>
-                 <button className={`w-11 h-6 rounded-full relative transition-colors ${isRoundTrip ? 'bg-blue-600' : 'bg-slate-300'}`}>
+                 <button className={`w-11 h-6 rounded-full relative transition-colors cursor-pointer ${isRoundTrip ? 'bg-blue-600' : 'bg-slate-300'}`}>
                     <div className={`w-4 h-4 rounded-full bg-white absolute top-1 transition-transform ${isRoundTrip ? 'translate-x-6' : 'translate-x-1'}`} />
                  </button>
               </div>
@@ -1337,7 +1370,7 @@ export default function App() {
       <button 
         onClick={() => { if(detectedTolls.list.length > 0 && includeTolls) setShowTollsModal(true) }} 
         disabled={detectedTolls.list.length === 0 || !includeTolls}
-        className="w-full bg-slate-900 text-white rounded-[1.25rem] py-4 font-extrabold text-[15px] flex items-center justify-center gap-2 shadow-xl shadow-slate-900/20 active:scale-[0.98] transition-all disabled:opacity-50 disabled:active:scale-100"
+        className="w-full bg-slate-900 text-white rounded-[1.25rem] py-4 font-extrabold text-[15px] flex items-center justify-center gap-2 shadow-xl shadow-slate-900/20 active:scale-[0.98] transition-all disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
       >
         <Ticket className="w-5 h-5" />
         {detectedTolls.list.length > 0 ? (includeTolls ? 'Ver desglose de peajes' : 'Peajes omitidos') : 'Sin peajes en la ruta'}
@@ -1369,7 +1402,7 @@ export default function App() {
             <div className="flex items-center gap-3">
                {authStatus === 'error' && <AlertCircle className="w-5 h-5 text-red-500" title="Error en API" />}
                {authStatus === 'demo' && <Info className="w-5 h-5 text-amber-500" title="Modo Demo" />}
-               <button onClick={() => setShowSettingsModal(true)} className="p-2.5 bg-white rounded-full shadow-sm text-slate-600 hover:bg-slate-50 transition-colors">
+               <button onClick={() => setShowSettingsModal(true)} className="p-2.5 bg-white rounded-full shadow-sm text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer">
                   <Settings className="w-5 h-5" />
                </button>
             </div>
@@ -1378,16 +1411,16 @@ export default function App() {
           {/* SWITCHER DE MODOS */}
           <div className="mx-6 p-1.5 bg-slate-200/60 rounded-[1.25rem] flex shrink-0 mb-2">
             <button
-              onClick={() => { setCalcMode("viaje"); setMobileStep(1); if (fuelType === "parafina") setFuelType("93"); }}
-              className={`flex-1 flex items-center justify-center gap-2 py-3 text-sm font-bold rounded-xl transition-all duration-300 ${calcMode === "viaje" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
-            >
-              <Route className="w-4 h-4" /> Viaje
-            </button>
-            <button
               onClick={() => { setCalcMode("carga"); setMobileStep(1); }}
-              className={`flex-1 flex items-center justify-center gap-2 py-3 text-sm font-bold rounded-xl transition-all duration-300 ${calcMode === "carga" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+              className={`flex-1 flex items-center justify-center gap-2 py-3 text-sm font-bold rounded-xl transition-all duration-300 cursor-pointer ${calcMode === "carga" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
             >
               <Fuel className="w-4 h-4" /> Carga
+            </button>
+            <button
+              onClick={() => { setCalcMode("viaje"); setMobileStep(1); if (fuelType === "parafina") setFuelType("93"); }}
+              className={`flex-1 flex items-center justify-center gap-2 py-3 text-sm font-bold rounded-xl transition-all duration-300 cursor-pointer ${calcMode === "viaje" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+            >
+              <Route className="w-4 h-4" /> Viaje
             </button>
           </div>
 
@@ -1399,7 +1432,7 @@ export default function App() {
                 {/* TARJETA ORIGEN/DESTINO */}
                 <div className="mx-6 mt-4 bg-white rounded-[2rem] p-4 shadow-[0_8px_30px_rgb(0,0,0,0.04)] relative">
                   <div className="absolute right-5 top-1/2 -translate-y-1/2 z-10">
-                    <button onClick={handleSwapCities} className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center text-slate-500 hover:bg-slate-200 transition-colors active:scale-95">
+                    <button onClick={handleSwapCities} className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center text-slate-500 hover:bg-slate-200 transition-colors active:scale-95 cursor-pointer">
                       <ArrowUpDown className="w-4 h-4" />
                     </button>
                   </div>
@@ -1479,7 +1512,7 @@ export default function App() {
                     {fuelOptionsCarga.map((type) => {
                       const isSelected = fuelType === type;
                       return (
-                        <button key={type} onClick={() => { setFuelType(type); localStorage.setItem('bencinaapp_fuel', type); }} className={`px-4 py-2.5 rounded-2xl text-sm font-bold transition-all flex-grow sm:flex-grow-0 text-center ${isSelected ? "bg-slate-900 text-white shadow-md" : "bg-white text-slate-600 shadow-[0_4px_20px_rgb(0,0,0,0.03)] hover:bg-slate-50"}`}>
+                        <button key={type} onClick={() => { setFuelType(type); localStorage.setItem('bencinaapp_fuel', type); }} className={`px-4 py-2.5 rounded-2xl text-sm font-bold transition-all flex-grow sm:flex-grow-0 text-center cursor-pointer ${isSelected ? "bg-slate-900 text-white shadow-md" : "bg-white text-slate-600 shadow-[0_4px_20px_rgb(0,0,0,0.03)] hover:bg-slate-50"}`}>
                           {type === "diesel" ? "Diesel" : type === "parafina" ? "Parafina" : type + " Oct"}
                         </button>
                       )
@@ -1496,12 +1529,12 @@ export default function App() {
                   
                   {/* Búsquedas recientes & GPS */}
                   <div className="flex flex-wrap items-center gap-2 pl-2 pt-1">
-                     <button onClick={handleGetLocation} className="text-[11px] font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-full flex items-center transition-colors">
+                     <button onClick={handleGetLocation} className="text-[11px] font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-full flex items-center transition-colors cursor-pointer">
                         {isLocating ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <MapPin className="w-3 h-3 mr-1" />} 
                         Cerca de mí
                      </button>
                      {recentComunas.map(c => (
-                       <button key={c} onClick={() => handleSelectComuna(c)} className="text-[11px] font-bold text-slate-500 bg-slate-200 hover:bg-slate-300 px-3 py-1.5 rounded-full transition-colors">
+                       <button key={c} onClick={() => handleSelectComuna(c)} className="text-[11px] font-bold text-slate-500 bg-slate-200 hover:bg-slate-300 px-3 py-1.5 rounded-full transition-colors cursor-pointer">
                          {c}
                        </button>
                      ))}
@@ -1518,7 +1551,7 @@ export default function App() {
                    <button 
                      onClick={() => setMobileStep(2)} 
                      disabled={!originCity || !destCity}
-                     className="w-full bg-slate-900 text-white rounded-[1.25rem] py-4 font-extrabold text-[15px] flex items-center justify-center gap-2 shadow-xl shadow-slate-900/20 active:scale-[0.98] transition-all disabled:opacity-50"
+                     className="w-full bg-slate-900 text-white rounded-[1.25rem] py-4 font-extrabold text-[15px] flex items-center justify-center gap-2 shadow-xl shadow-slate-900/20 active:scale-[0.98] transition-all disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
                    >
                      Ver Ruta y Resultados <ArrowRight className="w-5 h-5" />
                    </button>
@@ -1526,7 +1559,7 @@ export default function App() {
                    <button 
                      onClick={() => setMobileStep(2)} 
                      disabled={!cargaComuna || filteredStationsCarga.length === 0}
-                     className="w-full bg-slate-900 text-white rounded-[1.25rem] py-4 font-extrabold text-[15px] flex items-center justify-center gap-2 shadow-xl shadow-slate-900/20 active:scale-[0.98] transition-all disabled:opacity-50"
+                     className="w-full bg-slate-900 text-white rounded-[1.25rem] py-4 font-extrabold text-[15px] flex items-center justify-center gap-2 shadow-xl shadow-slate-900/20 active:scale-[0.98] transition-all disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
                    >
                      Ver Estaciones y Precios <ArrowRight className="w-5 h-5" />
                    </button>
@@ -1546,17 +1579,17 @@ export default function App() {
         <div className={`flex-1 bg-slate-50/50 p-0 lg:p-8 overflow-hidden relative flex-col ${mobileStep === 1 ? 'hidden lg:flex' : 'flex'}`}>
            
            {/* HEADER MOBILE PASO 2 */}
-           <div className="lg:hidden flex items-center px-6 pt-12 pb-4 bg-white shadow-sm shrink-0 z-20">
-              <button onClick={() => setMobileStep(1)} className="p-2 bg-slate-100 rounded-full mr-3">
+           <div className="lg:hidden flex items-center px-4 pt-12 pb-4 bg-white shadow-sm shrink-0 z-20 relative">
+              <button onClick={() => setMobileStep(1)} className="p-2 bg-slate-100 rounded-full mr-3 cursor-pointer">
                  <ChevronLeft className="w-5 h-5 text-slate-700"/>
               </button>
-              <h2 className="font-black text-[20px] text-slate-800 truncate">
+              <h2 className="font-black text-[18px] text-slate-800 truncate">
                  {calcMode === 'viaje' ? 'Ruta y Resultados' : `Estaciones en ${cargaComuna || '...'}`}
               </h2>
            </div>
 
            {/* CONTENEDOR RESTRINGIDO (ESTRUCTURA PRINCIPAL DESKTOP/MOBILE) */}
-           <div className={`flex-1 flex flex-col w-full h-full overflow-hidden relative p-6 lg:p-0 ${calcMode === 'viaje' ? 'pb-[220px] lg:pb-0' : 'pb-6 lg:pb-0'}`}>
+           <div className={`flex-1 flex flex-col w-full h-full overflow-hidden relative lg:p-0 ${calcMode === 'viaje' ? 'pb-[220px] lg:pb-0' : 'pb-0'}`}>
               {calcMode === 'carga' ? (
                   (cargaComuna && filteredStationsCarga.length > 0) ? (
                       CargaMainContent
@@ -1594,35 +1627,39 @@ export default function App() {
                   <h3 className="font-black text-slate-900 flex items-center text-xl">
                      <Calculator className="w-6 h-6 mr-2 text-slate-900"/> Calculadora
                   </h3>
-                  <button onClick={() => {setShowCalcModal(false); setCalcVal("");}} className="bg-slate-100 p-2 rounded-full hover:bg-slate-200 transition-colors">
+                  <button onClick={() => {setShowCalcModal(false); setCalcVal("");}} className="bg-slate-100 p-2 rounded-full hover:bg-slate-200 transition-colors cursor-pointer">
                      <X className="w-5 h-5 text-slate-600"/>
                   </button>
                </div>
                
                <div className="mb-4">
-                 <p className="text-sm font-bold text-slate-700">{currentStation.distribuidor}</p>
+                 <div className="flex items-center gap-2 mb-0.5">
+                   <p className="text-sm font-bold text-slate-700">{currentStation.distribuidor}</p>
+                   {currentStation.isAuto && <span className="text-[9px] font-black text-blue-600 bg-blue-100 px-1.5 py-0.5 rounded-full uppercase">Autoservicio</span>}
+                 </div>
                  <p className="text-xs text-slate-500">{currentStation.direccion}</p>
                </div>
 
-               {/* Selector de combustible dentro de la calculadora */}
+               {/* Selector de combustible Aislado (Solo para la calculadora) */}
                <div className="flex flex-wrap gap-1.5 mb-4">
                  {["93", "95", "97", "diesel", "parafina"].map(t => {
                     const p = currentStation.precios[t];
-                    if(getBestPrice(p) === 0) return null;
-                    const isSel = t === fuelType;
+                    const priceForT = currentStation.isAuto ? p?.autoservicio : p?.asistido;
+                    if(!priceForT || priceForT === 0) return null;
+                    const isSel = t === calcFuelType;
                     return (
-                      <button key={t} onClick={() => { setFuelType(t); localStorage.setItem('bencinaapp_fuel', t); }} className={`px-2.5 py-1.5 rounded-lg text-[10px] font-bold transition-all flex-grow text-center ${isSel ? 'bg-blue-600 text-white shadow-md' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}>
+                      <button key={t} onClick={() => setCalcFuelType(t)} className={`px-2.5 py-1.5 rounded-lg text-[10px] font-bold transition-all flex-grow text-center cursor-pointer ${isSel ? 'bg-blue-600 text-white shadow-md' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}>
                         {t === "diesel" ? "Diesel" : t === "parafina" ? "Parafina" : `${t} Oct`}
                       </button>
                     )
                  })}
                </div>
 
-               {/* Toggle claro de Pesos vs Litros */}
+               {/* Toggle Segmentado Elegante de Pesos vs Litros */}
                <div className="flex flex-col gap-3 mb-4">
-                  <div className="flex bg-slate-100 p-1.5 rounded-xl">
-                     <button onClick={() => { setCalcUnit("money"); setCalcVal(""); }} className={`flex-1 text-[13px] font-bold px-3 py-2 rounded-lg transition-colors ${calcUnit === 'money' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>Pesos ($)</button>
-                     <button onClick={() => { setCalcUnit("liters"); setCalcVal(""); }} className={`flex-1 text-[13px] font-bold px-3 py-2 rounded-lg transition-colors ${calcUnit === 'liters' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>Litros (L)</button>
+                  <div className="flex bg-slate-200/60 p-1.5 rounded-[1rem]">
+                     <button onClick={() => { setCalcUnit("money"); setCalcVal(""); }} className={`flex-1 text-[13px] font-bold px-3 py-2.5 rounded-xl transition-all cursor-pointer ${calcUnit === 'money' ? 'bg-white text-slate-800 shadow-sm scale-[1.02]' : 'text-slate-500 hover:text-slate-700'}`}>💵 Pesos ($)</button>
+                     <button onClick={() => { setCalcUnit("liters"); setCalcVal(""); }} className={`flex-1 text-[13px] font-bold px-3 py-2.5 rounded-xl transition-all cursor-pointer ${calcUnit === 'liters' ? 'bg-white text-slate-800 shadow-sm scale-[1.02]' : 'text-slate-500 hover:text-slate-700'}`}>⛽ Litros (L)</button>
                   </div>
                   <div className="relative">
                     <input type="number" min="0" step={calcUnit === "liters" ? "0.1" : "1000"} value={calcVal} onChange={(e) => setCalcVal(e.target.value)} className="w-full p-4 text-center text-xl border border-slate-200 rounded-[1.25rem] focus:ring-2 focus:ring-blue-500 outline-none font-black text-slate-900 bg-white shadow-sm" placeholder={calcUnit === "money" ? "Monto en $" : "Cantidad en Lts"} />
@@ -1635,9 +1672,9 @@ export default function App() {
                   </span>
                   <span className="text-3xl font-black text-slate-900">
                     {(() => {
-                       const p = getBestPrice(currentStation.precios[fuelType]);
+                       const p = currentStation.isAuto ? currentStation.precios[calcFuelType]?.autoservicio : currentStation.precios[calcFuelType]?.asistido;
                        const v = parseFloat(calcVal) || 0;
-                       if (p === 0) return "---";
+                       if (!p || p === 0) return "---";
                        if (calcUnit === "money") {
                           return `${(v / p).toFixed(1)} Lts`;
                        } else {
@@ -1647,7 +1684,7 @@ export default function App() {
                   </span>
                </div>
                
-               <button onClick={() => {setShowCalcModal(false); setCalcVal("");}} className="mt-4 w-full bg-slate-900 text-white py-4 rounded-[1.25rem] font-bold text-[15px] active:scale-95 transition-transform shadow-xl shadow-slate-900/20">
+               <button onClick={() => {setShowCalcModal(false); setCalcVal("");}} className="mt-4 w-full bg-slate-900 text-white py-4 rounded-[1.25rem] font-bold text-[15px] active:scale-95 transition-transform shadow-xl shadow-slate-900/20 cursor-pointer">
                   Cerrar
                </button>
              </div>
@@ -1658,16 +1695,23 @@ export default function App() {
         {showTollsModal && (
           <div className="fixed inset-0 z-[1000] bg-slate-900/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-4 sm:p-0">
             <div className="bg-white w-full max-w-sm rounded-[2.5rem] shadow-2xl p-6 animate-in slide-in-from-bottom-8 duration-300 mb-4 sm:mb-0">
-               <div className="flex justify-between items-center mb-6">
+               <div className="flex justify-between items-center mb-4">
                   <h3 className="font-black text-slate-900 flex items-center text-xl">
                      <Ticket className="w-6 h-6 mr-2 text-slate-900"/> Peajes en ruta
                   </h3>
-                  <button onClick={() => setShowTollsModal(false)} className="bg-slate-100 p-2 rounded-full hover:bg-slate-200 transition-colors">
+                  <button onClick={() => setShowTollsModal(false)} className="bg-slate-100 p-2 rounded-full hover:bg-slate-200 transition-colors cursor-pointer">
                      <X className="w-5 h-5 text-slate-600"/>
                   </button>
                </div>
                
-               <div className="max-h-64 overflow-y-auto space-y-2 pr-2 no-scrollbar">
+               <div className="flex items-start gap-2.5 bg-amber-50 p-3 rounded-xl border border-amber-200 mb-4">
+                 <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                 <p className="text-xs text-amber-800 font-medium leading-relaxed">
+                   <strong>Fase Beta:</strong> El cálculo de peajes es una estimación referencial para automóviles. Puede variar por horarios, fines de semana o pórticos no mapeados.
+                 </p>
+               </div>
+               
+               <div className="max-h-56 overflow-y-auto space-y-2 pr-2 no-scrollbar">
                   {detectedTolls.list.map((t, i) => (
                      <div key={i} className="flex justify-between items-center p-4 bg-slate-50 rounded-2xl border border-slate-100">
                         <span className="text-sm font-bold text-slate-700">{t.nombre}</span>
@@ -1684,7 +1728,7 @@ export default function App() {
                      </div>
                      <span className="text-3xl font-black text-slate-900 leading-none">{formatCLP(peajeTotal)}</span>
                   </div>
-                  <button onClick={() => setShowTollsModal(false)} className="w-full bg-slate-900 text-white py-4 rounded-[1.25rem] font-bold text-[15px] active:scale-95 transition-transform shadow-xl shadow-slate-900/20">
+                  <button onClick={() => setShowTollsModal(false)} className="w-full bg-slate-900 text-white py-4 rounded-[1.25rem] font-bold text-[15px] active:scale-95 transition-transform shadow-xl shadow-slate-900/20 cursor-pointer">
                      Cerrar
                   </button>
                </div>
@@ -1700,7 +1744,7 @@ export default function App() {
                   <h3 className="font-black text-slate-900 flex items-center text-xl">
                      <Settings className="w-6 h-6 mr-2 text-slate-900"/> Configuración
                   </h3>
-                  <button onClick={() => setShowSettingsModal(false)} className="bg-slate-100 p-2 rounded-full hover:bg-slate-200 transition-colors">
+                  <button onClick={() => setShowSettingsModal(false)} className="bg-slate-100 p-2 rounded-full hover:bg-slate-200 transition-colors cursor-pointer">
                      <X className="w-5 h-5 text-slate-600"/>
                   </button>
                </div>
@@ -1755,7 +1799,7 @@ export default function App() {
                </div>
                
                <div className="mt-4 pt-4 border-t border-slate-100">
-                  <button onClick={handleSaveSettings} className="w-full bg-slate-900 hover:bg-slate-800 text-white py-4 rounded-[1.25rem] font-bold text-[15px] active:scale-95 transition-all shadow-xl shadow-slate-900/20">
+                  <button onClick={handleSaveSettings} className="w-full bg-slate-900 hover:bg-slate-800 text-white py-4 rounded-[1.25rem] font-bold text-[15px] active:scale-95 transition-all shadow-xl shadow-slate-900/20 cursor-pointer">
                      Guardar Preferencias
                   </button>
                </div>
