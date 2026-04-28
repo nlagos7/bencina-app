@@ -7,14 +7,10 @@ import {
 } from "lucide-react";
 
 // =====================================================================
-// 🛑 CONFIGURACIÓN DE RUTAS Y API (Vía Proxy Local / Vercel / Canvas)
+// 🛑 CONFIGURACIÓN DE RUTAS Y API (Vía Proxy Local / Vercel)
 // =====================================================================
-// Detectamos si estamos en el entorno de prueba para usar un puente CORS y tener datos reales
-const IS_CANVAS = typeof window !== 'undefined' && (window.location.hostname.includes('google') || window.location.hostname.includes('localhost'));
-const API_CNE_BASE = "https://api.bencinaenlinea.cl";
-
-const RUTA_LOGIN = IS_CANVAS ? `https://corsproxy.io/?${encodeURIComponent(API_CNE_BASE + "/api/login")}` : "/api-cne/api/login";
-const RUTA_ESTACIONES = IS_CANVAS ? `https://corsproxy.io/?${encodeURIComponent(API_CNE_BASE + "/api/v4/estaciones")}` : "/api-cne/api/v4/estaciones";
+const RUTA_LOGIN = "/api-cne/api/login";
+const RUTA_ESTACIONES = "/api-cne/api/v4/estaciones";
 
 const REGION_MAP = {
   arica: "XV", parinacota: "XV", tarapacá: "I", tarapaca: "I",
@@ -134,6 +130,14 @@ const DESCUENTOS_POR_MARCA = {
   "shell": [{ dia: "Martes", desc: "$100/L dcto Lider Bci" }, { dia: "Viernes", desc: "Hasta $300/L dcto Tenpo" }, { dia: "Domingo", desc: "$100/L dcto BICE" }],
   "aramco": [{ dia: "Lunes", desc: "$150/L dcto Consorcio" }, { dia: "Miércoles", desc: "$150/L dcto Ripley" }, { dia: "Viernes", desc: "Hasta $300/L dcto Tenpo" }]
 };
+
+function extractRegionId(displayName) {
+  const lower = (displayName || "").toLowerCase();
+  for (const [key, id] of Object.entries(REGION_MAP)) {
+    if (lower.includes(key)) return id;
+  }
+  return "RM";
+}
 
 function getStraightLineDistance(lat1, lon1, lat2, lon2) {
   if (lat1 === lat2 && lon1 === lon2) return 0;
@@ -264,7 +268,7 @@ const RouteCityAutocomplete = ({ placeholder, value, onSelect, comunasData, hide
           const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&countrycodes=cl&q=${encodeURIComponent(query)}&limit=5`);
           const data = await res.json();
           setExternalResults(data.map(d => ({ mainName: d.name || d.display_name.split(',')[0], regionName: d.display_name.split(',').slice(1,3).join(','), lat: parseFloat(d.lat), lon: parseFloat(d.lon), isExternal: true })).filter(ex => !filtered.some(loc => normalizeString(loc.mainName) === normalizeString(ex.mainName))));
-        } catch (err) { } finally { setIsSearching(false); }
+        } catch (err) { console.warn("Nominatim API warn:", err); } finally { setIsSearching(false); }
       }, 800);
       return () => clearTimeout(timeoutId);
     } else { setExternalResults([]); setIsSearching(false); }
@@ -408,6 +412,17 @@ export default function App() {
         mainName: c.mainName, name: c.name, regionId: c.regionId, regionName: c.regionName, lat: c.latSum / c.count, lon: c.lonSum / c.count,
     })).sort((a, b) => a.mainName.localeCompare(b.mainName));
   }, [cneStations]);
+
+  // Inyección del Script de AdSense
+  useEffect(() => {
+    if (!document.querySelector('script[src*="pagead2.googlesyndication.com"]')) {
+      const script = document.createElement("script");
+      script.src = "https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6243319897431930";
+      script.async = true;
+      script.crossOrigin = "anonymous";
+      document.head.appendChild(script);
+    }
+  }, []);
 
   // URL Sync
   useEffect(() => {
@@ -553,6 +568,9 @@ export default function App() {
 
       const getRouteData = async (points) => {
         const coordsOSRM = points.map(p => `${p.lon},${p.lat}`).join(';');
+        
+        console.log("🛣️ Consultando API de rutas con puntos:", coordsOSRM);
+
         return await Promise.any([{ url: `https://router.project-osrm.org/route/v1/driving/${coordsOSRM}?overview=full&geometries=geojson`, type: "osrm" }, { url: `https://routing.openstreetmap.de/routed-car/route/v1/driving/${coordsOSRM}?overview=full&geometries=geojson`, type: "osrm" }, { url: "https://api.openrouteservice.org/v2/directions/driving-car", type: "ors", body: { coordinates: points.map(p => [p.lon, p.lat]) } }].map(async (ep) => {
           if (ep.type === "ors") {
             const res = await fetch(ep.url, { method: "POST", headers: { "Authorization": "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjM5MDY2ZmJlZDhhNzRkYTZiMmVkOWI5MmI2NDcyM2Q1IiwiaCI6Im11cm11cjY0In0=", "Content-Type": "application/json" }, signal: controller.signal, body: JSON.stringify(ep.body) });
@@ -583,7 +601,7 @@ export default function App() {
         }
         setDistanceKm(finalDist.toFixed(1)); setRouteGeometry(finalGeo); setDetectedTolls({ total: finalTollsTotal, list: finalTollsList });
       } catch (err) {
-        console.error("Error al calcular ruta:", err);
+        console.error("🔥 Error crítico en cálculo de ruta:", err);
         const pts = [originCity, ...waypoints.filter(w => w !== null), destCity];
         let fallbackDist = 0; for(let i=0; i<pts.length-1; i++) fallbackDist += calculateHaversineDistance(pts[i].lat, pts[i].lon, pts[i+1].lat, pts[i+1].lon);
         let fakeGeoOut = { coordinates: pts.map(p => [p.lon, p.lat]) }, tollsOut = detectTollsInRoute(fakeGeoOut);
@@ -607,15 +625,24 @@ export default function App() {
     const fetchPrecios = async () => {
       setIsLoading(true);
       try {
+        console.log("🚀 Iniciando conexión con CNE (Login)... RUTA:", RUTA_LOGIN);
         const loginRes = await fetch(RUTA_LOGIN, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: "email=nicolas0645@gmail.com&password=12qwaszxL" });
-        if (!loginRes.ok) throw new Error(`Error en Login.`);
+        console.log("✅ Status Login CNE:", loginRes.status);
+        
+        if (!loginRes.ok) throw new Error(`Error en Login HTTP: ${loginRes.status}`);
         const loginData = await loginRes.json();
+        
         const token = loginData.data?.token || loginData.token;
         if (token) {
+          console.log("🔑 Token obtenido correctamente. Consultando Estaciones...");
           setAuthStatus("success");
           const stRes = await fetch(RUTA_ESTACIONES, { headers: { Token: token, Authorization: `Bearer ${token}`, Accept: "application/json" } });
+          console.log("✅ Status Estaciones CNE:", stRes.status);
           const stData = await stRes.json();
+          
           const raw = Array.isArray(stData) ? stData : stData.data || stData.estaciones || [];
+          console.log(`📊 Se recibieron ${raw.length} estaciones crudas desde la API.`);
+          
           const seen = new Set(), cleanList = [];
           raw.forEach((s) => {
             let distribuidorStr = s.distribuidor?.marca || s.distribuidor?.nombre || s.distribuidor || s.razon_social || "Independiente";
@@ -663,8 +690,13 @@ export default function App() {
             }
           });
           setCneStations(cleanList.filter((s) => s.lat !== 0 && s.lon !== 0 && s.comuna !== "Desconocida"));
-        } else setAuthStatus("error");
+        } else {
+           console.error("🔥 Error: El login de la CNE respondió pero NO entregó el Token.");
+           setAuthStatus("error");
+        }
       } catch (e) {
+        console.error("🔥 Error Crítico conectando a la API:", e);
+        console.warn("⚠️ Cargando datos DEMO / MOCK de respaldo...");
         setAuthStatus("demo");
         const MOCK_STATIONS = [
           { id: "m1", comuna: "Santiago Centro", distribuidor: "Copec", direccion: "Av. Providencia 123", lat: -33.4489, lon: -70.6693, precios: { 93: { asistido: 1320, autoservicio: 1300 }, 95: { asistido: 1360 }, 97: { asistido: 1400 }, diesel: { asistido: 1050 }, parafina: { asistido: 950 } }, actualizacion: "Hoy", regionId: "RM", regionName: "Región Metropolitana", timestampAct: Date.now() },
@@ -898,6 +930,12 @@ export default function App() {
         </div>
       )}
 
+      {/* ENLACES LEGALES MOBILE */}
+      <div className="lg:hidden mx-6 mt-4 mb-8 pt-4 flex flex-wrap justify-center gap-x-4 gap-y-2 pb-6 border-t border-slate-200/60 w-full shrink-0">
+         <button onClick={() => setLegalView('about')} className="text-[10px] font-extrabold text-slate-400 hover:text-blue-600 transition-colors cursor-pointer">Acerca de</button>
+         <button onClick={() => setLegalView('privacy')} className="text-[10px] font-extrabold text-slate-400 hover:text-blue-600 transition-colors cursor-pointer">Privacidad</button>
+         <button onClick={() => setLegalView('terms')} className="text-[10px] font-extrabold text-slate-400 hover:text-blue-600 transition-colors cursor-pointer">Términos</button>
+      </div>
     </div>
   );
 
@@ -969,7 +1007,7 @@ export default function App() {
          </div>
       </div>
 
-      <div className="w-full mt-6"><AdPlaceholder /></div>
+      <div className="hidden lg:block w-full"><AdPlaceholder /></div>
       
       <div className="lg:hidden fixed bottom-6 left-1/2 -translate-x-1/2 z-50">
          <button onClick={() => setMobileStep(2)} disabled={!originCity || !destCity} className="bg-slate-900 text-white px-6 py-3.5 rounded-full font-black text-sm shadow-xl shadow-slate-900/20 flex items-center gap-2 whitespace-nowrap active:scale-95 transition-all cursor-pointer disabled:opacity-50">
