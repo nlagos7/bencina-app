@@ -154,7 +154,7 @@ function decodePolyline(encoded, precision = 5) {
   const factor = Math.pow(10, precision); let index = 0, lat = 0, lng = 0, coordinates = [];
   while (index < encoded.length) {
     let byte, shift = 0, result = 0;
-    do { byte = encoded.charCodeAt(index++) - 63; shift += 5; result |= (byte & 0x1f) << shift; } while (byte >= 0x20); // Fallback safe
+    do { byte = encoded.charCodeAt(index++) - 63; shift += 5; result |= (byte & 0x1f) << shift; } while (byte >= 0x20);
     lat += ((result & 1) ? ~(result >> 1) : (result >> 1)); shift = 0; result = 0;
     do { byte = encoded.charCodeAt(index++) - 63; shift += 5; result |= (byte & 0x1f) << shift; } while (byte >= 0x20);
     lng += ((result & 1) ? ~(result >> 1) : (result >> 1)); coordinates.push([lng / factor, lat / factor]);
@@ -199,13 +199,17 @@ function generateMapHtml(origin, dest, geometry, isRoundTrip, tolls = [], waypoi
   // Padding adaptativo para esquivar el panel inferior de la ruta
   return `<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" /><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" /><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script><style>body{margin:0;padding:0;background:#e2e8f0;}#map{width:100vw;height:100vh;}.leaflet-control-attribution{display:none!important;} .custom-leaflet-icon { background: transparent; border: none; }</style></head><body><div id="map"></div><script>var map = L.map('map', { zoomControl: false }); L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png').addTo(map); var originCoord=[${origin.lat}, ${origin.lon}]; var destCoord=[${dest.lat}, ${dest.lon}]; L.marker(originCoord, {icon: L.divIcon({className:'custom-leaflet-icon', iconSize:[16,16], html:'<div style="background:#3b82f6;width:16px;height:16px;border:3px solid white;border-radius:50%;box-shadow:0 2px 5px rgba(0,0,0,0.3)"></div>'})}).addTo(map); L.marker(destCoord, {icon: L.divIcon({className:'custom-leaflet-icon', iconSize:[16,16], html:'<div style="background:#ef4444;width:16px;height:16px;border:3px solid white;border-radius:50%;box-shadow:0 2px 5px rgba(0,0,0,0.3)"></div>'})}).addTo(map); ${waypointsJs} var geom = ${geometry ? JSON.stringify(geometry) : 'null'}; 
   setTimeout(function() {
-      if(geom && geom.coordinates){ 
+      if(geom && geom.coordinates && geom.coordinates.length > 1){ 
          var coords = geom.coordinates.map(function(c){return [c[1], c[0]];}); 
          var poly = L.polyline(coords, {color: '#3b82f6', weight: 4, opacity: 0.9}).addTo(map); 
-         map.fitBounds(poly.getBounds(), {paddingTopLeft: [50, 50], paddingBottomRight: [50, 250]});
+         if (poly.getBounds().isValid()) {
+            map.fitBounds(poly.getBounds(), {paddingTopLeft: [50, 50], paddingBottomRight: [50, 250]});
+         }
       } else { 
          var b = L.latLngBounds([originCoord, destCoord]);
-         map.fitBounds(b, {paddingTopLeft: [50, 50], paddingBottomRight: [50, 250]});
+         if (b.isValid()) {
+            map.fitBounds(b, {paddingTopLeft: [50, 50], paddingBottomRight: [50, 250]});
+         }
       } 
   }, 100);
   ${tollsJs}</script></body></html>`;
@@ -217,20 +221,22 @@ function generateStationsMapHtml(stations, selectedStation, userLoc, showRouteLi
   
   const markersJs = stations.map((s) => {
       const isSelected = selectedStation && s.id === selectedId;
-      const color = isSelected ? "#3b82f6" : s.isOutdated ? "#cbd5e1" : "#94a3b8";
-      const extraStyle = isSelected ? "animation: pulse 1.5s infinite; transform: scale(1.1); z-index: 1000;" : "box-shadow: 0 4px 8px rgba(0,0,0,0.2);";
+      const baseColor = s.isOutdated ? "#94a3b8" : "#0f172a";
+      const color = isSelected ? "#3b82f6" : baseColor;
       
       const pObj = s.precios[fuelType];
       const asis = pObj?.asistido || 0, auto = pObj?.autoservicio || 0;
       const price = (asis > 0 && auto > 0) ? Math.min(asis, auto) : (asis > 0 ? asis : auto);
       
-      // Mostrar logo en el pin si existe, si no, la inicial de la marca
-      const logoStr = s.logo ? `<img src="${s.logo}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;background:white;"/>` : `<span style="font-size:12px;font-weight:900;color:#334155;">${s.distribuidor.substring(0,1)}</span>`;
-      
-      // HTML del pin personalizado con logo y precio
-      const htmlStr = `<div style="display:flex;flex-direction:column;align-items:center;margin-top:-20px;"><div style="background:${color};width:28px;height:28px;border:2px solid white;border-radius:50%;display:flex;align-items:center;justify-content:center;overflow:hidden;${extraStyle}">${logoStr}</div><div style="background:white;color:#0f172a;font-size:11px;font-weight:900;padding:2px 6px;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,0.2);margin-top:3px;">$${price}</div></div>`;
+      let htmlStr = '';
+      if (isSelected) {
+          const logoStr = s.logo ? `<img src="${s.logo}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;background:white;"/>` : `<span style="font-size:12px;font-weight:900;color:#334155;">${s.distribuidor.substring(0,1)}</span>`;
+          htmlStr = `<div style="display:flex;flex-direction:column;align-items:center;margin-top:-20px;"><div style="background:${color};width:32px;height:32px;border:2px solid white;border-radius:50%;display:flex;align-items:center;justify-content:center;overflow:hidden;box-shadow:0 4px 10px rgba(0,0,0,0.3);animation: pulse 1.5s infinite;">${logoStr}</div><div style="background:#2563eb;color:white;font-size:11px;font-weight:900;padding:2px 8px;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,0.2);margin-top:4px;">$${price}</div></div>`;
+      } else {
+          htmlStr = `<div style="background:white;border:1.5px solid ${color};color:${color};font-size:10px;font-weight:900;padding:1px 5px;border-radius:6px;box-shadow:0 2px 4px rgba(0,0,0,0.15);text-align:center;white-space:nowrap;transform: translate(-50%, -50%);">$${price}</div>`;
+      }
 
-      return `var html_${s.id.replace(/\W/g,"")} = \`${htmlStr}\`; var m_${s.id.replace(/\W/g,"")} = L.marker([${s.lat}, ${s.lon}], {icon: L.divIcon({className: 'custom-leaflet-icon', html: html_${s.id.replace(/\W/g,"")}, iconSize:[60,60]}), zIndexOffset:${isSelected?1000:1}}).addTo(map); m_${s.id.replace(/\W/g,"")}.on('click', function(){ window.parent.postMessage({type:'STATION_CLICKED', id:'${s.id}'}, '*'); });`;
+      return `var html_${s.id.replace(/\W/g,"")} = \`${htmlStr}\`; var m_${s.id.replace(/\W/g,"")} = L.marker([${s.lat}, ${s.lon}], {icon: L.divIcon({className: 'custom-leaflet-icon', html: html_${s.id.replace(/\W/g,"")}, iconSize: ${isSelected ? '[60,60]' : '[40,20]'}}), zIndexOffset:${isSelected?1000:1}}).addTo(map); m_${s.id.replace(/\W/g,"")}.on('click', function(){ window.parent.postMessage({type:'STATION_CLICKED', id:'${s.id}'}, '*'); });`;
   }).join("\n");
   
   let userMarkerJs = userLoc ? `L.marker([${userLoc.lat}, ${userLoc.lon}], {icon: L.divIcon({className: 'custom-leaflet-icon', html: '<div style="background:#2563eb;width:100%;height:100%;border:3px solid white;border-radius:50%;box-shadow:0 0 0 4px rgba(37,99,235,0.4)"></div>', iconSize:[16,16]}), zIndexOffset: 2000}).addTo(map).bindPopup("<b>Tu ubicación</b>");` : "";
@@ -242,18 +248,22 @@ function generateStationsMapHtml(stations, selectedStation, userLoc, showRouteLi
        map.fitBounds(r.getBounds(), {paddingTopLeft: [50, 50], paddingBottomRight: [50, 250]});
      `;
   } else if (selectedStation) {
-     // Desplazamiento hacia abajo para que el pin suba y evite el panel inferior en todas las pantallas
      mapViewJs = `
-       map.setView([${selectedStation.lat}, ${selectedStation.lon}], 14);
-       setTimeout(function() {
-          map.panBy([0, 150], {animate: true, duration: 0.5});
-       }, 200);
+       var target = L.latLng(${selectedStation.lat}, ${selectedStation.lon});
+       var zoom = 14;
+       var targetPoint = map.project(target, zoom);
+       var paddingBottom = window.innerWidth >= 1024 ? 300 : Math.min(window.innerHeight * 0.55, 400);
+       targetPoint.y += (paddingBottom / 2); 
+       map.setView(map.unproject(targetPoint, zoom), zoom);
      `;
   } else {
      mapViewJs = `
        setTimeout(function() {
           var b = L.latLngBounds([${stations.map(s=>`[${s.lat},${s.lon}]`).join(",")}]);
-          map.fitBounds(b, {paddingTopLeft: [50, 50], paddingBottomRight: [50, 250]});
+          var paddingBottom = window.innerWidth >= 1024 ? 300 : Math.min(window.innerHeight * 0.55, 400);
+          if(b.isValid()) {
+              map.fitBounds(b, {paddingTopLeft: [50, 50], paddingBottomRight: [50, paddingBottom]});
+          }
        }, 100);
      `;
   }
@@ -603,10 +613,14 @@ export default function App() {
         return await Promise.any([{ url: `https://router.project-osrm.org/route/v1/driving/${coordsOSRM}?overview=full&geometries=geojson`, type: "osrm" }, { url: `https://routing.openstreetmap.de/routed-car/route/v1/driving/${coordsOSRM}?overview=full&geometries=geojson`, type: "osrm" }, { url: "https://api.openrouteservice.org/v2/directions/driving-car", type: "ors", body: { coordinates: points.map(p => [p.lon, p.lat]) } }].map(async (ep) => {
           if (ep.type === "ors") {
             const res = await fetch(ep.url, { method: "POST", headers: { "Authorization": "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjM5MDY2ZmJlZDhhNzRkYTZiMmVkOWI5MmI2NDcyM2Q1IiwiaCI6Im11cm11cjY0In0=", "Content-Type": "application/json" }, signal: controller.signal, body: JSON.stringify(ep.body) });
-            const data = await res.json(); return { geo: { coordinates: decodePolyline(data.routes[0].geometry) }, dist: data.routes[0].summary.distance / 1000 };
+            const data = await res.json(); 
+            if (!data || !data.routes || data.routes.length === 0) throw new Error("Invalid route from API");
+            return { geo: { coordinates: decodePolyline(data.routes[0].geometry) }, dist: data.routes[0].summary.distance / 1000 };
           } else {
             const res = await fetch(ep.url, { signal: controller.signal });
-            const data = await res.json(); return { geo: data.routes[0].geometry, dist: data.routes[0].distance / 1000 };
+            const data = await res.json(); 
+            if (!data || !data.routes || data.routes.length === 0) throw new Error("Invalid route from API");
+            return { geo: data.routes[0].geometry, dist: data.routes[0].distance / 1000 };
           }
         }));
       };
@@ -1086,14 +1100,14 @@ export default function App() {
            {stationsMapUrl ? <iframe key={`map-${stationsMapUrl}-${mobileStep}`} src={stationsMapUrl} title="Mapa Estaciones" className="w-full h-full" style={{ border: 0 }} sandbox="allow-scripts allow-same-origin" /> : <div className="w-full h-full flex items-center justify-center text-slate-400"><Loader2 className="w-8 h-8 animate-spin" /></div>}
         </div>
         
-        {/* PANEL DETALLE / LISTA MOBILE Y DESKTOP (BOTTOM SHEET) */}
-        <div className="absolute bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xl lg:rounded-b-[1rem] rounded-t-[2.5rem] lg:rounded-t-[2rem] p-5 sm:p-6 shadow-[0_-15px_40px_rgba(0,0,0,0.12)] border-t border-slate-200 z-30 flex flex-col max-h-[85vh] lg:max-h-[60vh] transition-all duration-300">
+        {/* PANEL DETALLE / LISTA (DESKTOP Y MOBILE BOTTOM SHEET) */}
+        <div className={`absolute bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xl lg:rounded-b-[1rem] rounded-t-[2.5rem] lg:rounded-t-[2rem] p-5 sm:p-6 shadow-[0_-15px_40px_rgba(0,0,0,0.12)] border-t border-slate-200 z-30 flex flex-col max-h-[85vh] lg:max-h-[60vh] transition-all duration-300 ${!currentStation ? 'lg:hidden' : ''}`}>
            {/* Pestañita Drag Handle solo visible en mobile */}
            <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-5 shrink-0 lg:hidden"></div>
 
            {currentStation ? (
               !showCalcModal ? (
-                 <div className="flex flex-col flex-1 overflow-hidden">
+                 <div className="flex flex-col flex-1 overflow-hidden lg:max-w-3xl lg:mx-auto w-full">
                     <div className="flex justify-between items-start mb-4 shrink-0">
                        <div className="flex items-center gap-3">
                           {currentStation.logo ? <img src={currentStation.logo} className="w-10 h-10 object-contain rounded-full border border-slate-100 p-1 bg-white" /> : <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center"><Fuel className="w-6 h-6 text-slate-400" /></div>}
@@ -1120,37 +1134,45 @@ export default function App() {
                                     Auto {diffBase > 0 ? <span className="text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-md ml-1 text-[10px]">-$ {diffBase}</span> : ''}
                                   </button>
                                 </div>
+                                <div className="mt-3 text-[10px] text-slate-500 flex items-start gap-1.5 leading-tight px-2">
+                                    <Info className="w-4 h-4 shrink-0 text-blue-500" />
+                                    <span>
+                                      <b>Autoservicio:</b> Tú cargas el combustible (más barato). <b>Asistido:</b> Un atendedor realiza la carga. 
+                                      {diffBase > 0 ? <span className="text-blue-600 font-bold block mt-1">Esta estación ofrece un descuento de ${diffBase} por litro en modalidad autoservicio.</span> : ''}
+                                    </span>
+                                </div>
                               </div>
                             )
                           }
                           return null;
                        })()}
 
-                       <div className="grid grid-cols-2 gap-2 mb-4 mt-2">
-                          {["93", "95", "97", "diesel"].map((t) => {
+                       <div className="grid grid-cols-2 lg:grid-cols-3 gap-2 mb-4 mt-2">
+                          {["93", "95", "97", "diesel", "parafina"].map((t) => {
                              const p = currentStation.precios[t];
                              const priceToShow = p?.[serviceMode];
                              if (!priceToShow || priceToShow === 0) return null;
                              const isThisFuelSelected = t === fuelType;
                              return (
                                <div key={t} className={`rounded-xl p-2.5 flex justify-between items-center border ${isThisFuelSelected ? 'bg-blue-50 border-blue-200' : 'bg-white border-slate-200'}`}>
-                                 <span className={`text-[10px] font-bold uppercase ${isThisFuelSelected ? 'text-blue-700' : 'text-slate-500'}`}>{t === "diesel" ? "Diesel" : `${t} Oct`}</span>
+                                 <span className={`text-[10px] font-bold uppercase ${isThisFuelSelected ? 'text-blue-700' : 'text-slate-500'}`}>{t === "diesel" ? "Diesel" : t === "parafina" ? "Parafina" : `${t} Oct`}</span>
                                  <span className={`text-[13px] font-black ${isThisFuelSelected ? 'text-blue-700' : 'text-slate-900'}`}>{formatCLP(priceToShow)}</span>
                                </div>
                              );
                           })}
                        </div>
                        
+                       {/* DESCUENTOS EN MÓVIL Y DESKTOP */}
                        {renderDiscountsSection(currentStation)}
 
                     </div>
-                    <div className="flex gap-2 pt-3 border-t border-slate-100 mt-1 shrink-0 lg:pb-0 pb-6">
+                    <div className="flex gap-2 pt-3 border-t border-slate-100 mt-1 shrink-0 pb-6 lg:pb-0">
                        <button onClick={() => { setCalcFuelType(fuelType); setShowCalcModal(true); }} className="flex-1 bg-slate-900 text-white rounded-xl py-3.5 text-[13px] font-extrabold flex items-center justify-center gap-1.5 shadow-xl shadow-slate-900/20 active:scale-95 transition-transform"><Calculator className="w-4 h-4" /> Calcular</button>
                        <a href={`https://www.google.com/maps/dir/?api=1&destination=${currentStation.lat},${currentStation.lon}`} target="_blank" rel="noopener noreferrer" className="flex-1 bg-blue-600 text-white rounded-xl py-3.5 text-[13px] font-extrabold flex items-center justify-center gap-1.5 shadow-xl shadow-blue-600/20 active:scale-95 transition-transform"><MapPin className="w-3.5 h-3.5" /> Llegar</a>
                     </div>
                  </div>
               ) : (
-                 <div className="flex flex-col flex-1 overflow-hidden">
+                 <div className="flex flex-col flex-1 overflow-hidden lg:max-w-2xl lg:mx-auto w-full">
                     <div className="flex justify-between items-center mb-4 shrink-0 px-1">
                        <h3 className="font-black text-slate-900 flex items-center text-lg"><Calculator className="w-5 h-5 mr-2 text-slate-900"/> Calculadora</h3>
                        <button onClick={() => {setShowCalcModal(false); setCalcVal("");}} className="bg-slate-100 p-2.5 rounded-full hover:bg-slate-200 transition-colors cursor-pointer"><ChevronLeft className="w-4 h-4 text-slate-600"/></button>
@@ -1178,7 +1200,6 @@ export default function App() {
                  </div>
               )
            ) : (
-             // La lista en mobile. En desktop está oculta porque está en el panel izquierdo
              <div className="lg:hidden flex flex-col flex-1 overflow-hidden">
                 <div className="flex justify-between items-center mb-4 shrink-0 px-1">
                    <h3 className="text-[15px] font-black text-slate-800 tracking-tight">{filteredStationsCarga.length} Estaciones en {cargaComuna}</h3>
