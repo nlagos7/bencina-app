@@ -7,10 +7,14 @@ import {
 } from "lucide-react";
 
 // =====================================================================
-// 🛑 CONFIGURACIÓN DE RUTAS Y API (Vía Proxy Local / Vercel)
+// 🛑 CONFIGURACIÓN DE RUTAS Y API (Vía Proxy Local / Vercel / Canvas)
 // =====================================================================
-const RUTA_LOGIN = "/api-cne/api/login";
-const RUTA_ESTACIONES = "/api-cne/api/v4/estaciones";
+// Detectamos si estamos en el entorno de prueba para usar un puente CORS y tener datos reales
+const IS_CANVAS = typeof window !== 'undefined' && (window.location.hostname.includes('google') || window.location.hostname.includes('localhost'));
+const API_CNE_BASE = "https://api.bencinaenlinea.cl";
+
+const RUTA_LOGIN = IS_CANVAS ? `https://corsproxy.io/?${encodeURIComponent(API_CNE_BASE + "/api/login")}` : "/api-cne/api/login";
+const RUTA_ESTACIONES = IS_CANVAS ? `https://corsproxy.io/?${encodeURIComponent(API_CNE_BASE + "/api/v4/estaciones")}` : "/api-cne/api/v4/estaciones";
 
 const REGION_MAP = {
   arica: "XV", parinacota: "XV", tarapacá: "I", tarapaca: "I",
@@ -22,7 +26,7 @@ const REGION_MAP = {
   aysén: "XI", aysen: "XI", magallanes: "XII",
 };
 
-const POPULAR_COMUNAS = ["Santiago", "Providencia", "Las Condes", "Maipú", "Viña del Mar", "Concepción", "Antofagasta", "Temuco"];
+const POPULAR_COMUNAS = ["Santiago Centro", "Providencia", "Las Condes", "Maipú", "Viña del Mar", "Concepción", "Antofagasta", "Temuco"];
 const FUEL_OPTIONS_CARGA = ["93", "95", "97", "diesel", "parafina"];
 
 const normalizeString = (str) => str ? str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase() : "";
@@ -30,14 +34,33 @@ const normalizeString = (str) => str ? str.normalize("NFD").replace(/[\u0300-\u0
 // =========================
 // 📢 COMPONENTE PUBLICIDAD (ADSENSE)
 // =========================
-const AdPlaceholder = ({ className = "" }) => (
-  <div className={`w-full bg-slate-100/50 border border-slate-200 border-dashed rounded-[1.5rem] flex flex-col items-center justify-center text-slate-400 py-6 px-4 shadow-sm ${className}`}>
-     <span className="text-[9px] font-black uppercase tracking-widest text-slate-400/80 mb-1">Publicidad</span>
-     <div className="flex items-center gap-1 text-[10px] font-bold text-slate-500">
-        <ExternalLink className="w-3 h-3" /> Espacio reservado para AdSense
-     </div>
-  </div>
-);
+const AdPlaceholder = ({ className = "" }) => {
+  const adRef = useRef(false);
+
+  useEffect(() => {
+    // Evitamos el doble renderizado en React Strict Mode
+    if (!adRef.current) {
+      try {
+        if (window && typeof window !== "undefined") {
+          (window.adsbygoogle = window.adsbygoogle || []).push({});
+        }
+      } catch (e) {
+        console.warn("AdSense:", e.message);
+      }
+      adRef.current = true;
+    }
+  }, []);
+
+  return (
+    <div className={`w-full bg-slate-50 border border-slate-100 rounded-[1.5rem] flex flex-col items-center justify-center text-slate-400 p-2 shadow-sm min-h-[100px] overflow-hidden ${className}`}>
+      <ins className="adsbygoogle"
+           style={{ display: "block", width: "100%", textAlign: "center" }}
+           data-ad-client="ca-pub-6243319897431930"
+           data-ad-format="auto"
+           data-full-width-responsive="true"></ins>
+    </div>
+  );
+};
 
 // =========================
 // 🚧 MEGA PEAJES DB
@@ -112,17 +135,6 @@ const DESCUENTOS_POR_MARCA = {
   "aramco": [{ dia: "Lunes", desc: "$150/L dcto Consorcio" }, { dia: "Miércoles", desc: "$150/L dcto Ripley" }, { dia: "Viernes", desc: "Hasta $300/L dcto Tenpo" }]
 };
 
-function extractRegionId(displayName) {
-  const lower = (displayName || "").toLowerCase();
-  for (const [key, id] of Object.entries(REGION_MAP)) {
-    if (lower.includes(key)) return id;
-  }
-  return "RM";
-}
-
-// =========================
-// UTILIDADES MATEMÁTICAS / GEO
-// =========================
 function getStraightLineDistance(lat1, lon1, lat2, lon2) {
   if (lat1 === lat2 && lon1 === lon2) return 0;
   const R = 6371, dLat = ((lat2 - lat1) * Math.PI) / 180, dLon = ((lon2 - lon1) * Math.PI) / 180;
@@ -136,9 +148,9 @@ function decodePolyline(encoded, precision = 5) {
   const factor = Math.pow(10, precision); let index = 0, lat = 0, lng = 0, coordinates = [];
   while (index < encoded.length) {
     let byte, shift = 0, result = 0;
-    do { byte = encoded.charCodeAt(index++) - 63; result |= (byte & 0x1f) << shift; shift += 5; } while (byte >= 0x20);
+    do { byte = encoded.charCodeAt(index++) - 63; shift += 5; result |= (byte & 0x1f) << shift; } while (byte >= 0x20); // Fallback safe
     lat += ((result & 1) ? ~(result >> 1) : (result >> 1)); shift = 0; result = 0;
-    do { byte = encoded.charCodeAt(index++) - 63; result |= (byte & 0x1f) << shift; shift += 5; } while (byte >= 0x20);
+    do { byte = encoded.charCodeAt(index++) - 63; shift += 5; result |= (byte & 0x1f) << shift; } while (byte >= 0x20);
     lng += ((result & 1) ? ~(result >> 1) : (result >> 1)); coordinates.push([lng / factor, lat / factor]);
   }
   return coordinates;
@@ -223,8 +235,20 @@ const RouteCityAutocomplete = ({ placeholder, value, onSelect, comunasData, hide
   const [externalResults, setExternalResults] = useState([]);
   const [isOpen, setIsOpen] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
+  const wrapperRef = useRef(null);
 
   useEffect(() => { setQuery(value ? value.mainName : ""); }, [value]);
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (wrapperRef.current && !wrapperRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
   useEffect(() => {
     if (!isOpen) { setLocalResults([]); setExternalResults([]); return; }
     const safeQuery = normalizeString(query);
@@ -253,8 +277,8 @@ const RouteCityAutocomplete = ({ placeholder, value, onSelect, comunasData, hide
   };
 
   return (
-    <div className="relative w-full flex-1">
-      <input type="text" value={query || ""} onFocus={() => setIsOpen(true)} onBlur={() => setTimeout(() => setIsOpen(false), 200)} onChange={(e) => { setQuery(e.target.value); setIsOpen(true); if (value && value.mainName !== e.target.value) onSelect(null); }} placeholder={placeholder} className="w-full py-2 pr-10 text-[16px] font-bold text-slate-800 bg-transparent outline-none placeholder:text-slate-400" />
+    <div ref={wrapperRef} className="relative w-full flex-1">
+      <input type="text" value={query || ""} onFocus={() => setIsOpen(true)} onChange={(e) => { setQuery(e.target.value); setIsOpen(true); if (value && value.mainName !== e.target.value) onSelect(null); }} placeholder={placeholder} className="w-full py-2 pr-10 text-[16px] font-bold text-slate-800 bg-transparent outline-none placeholder:text-slate-400" />
       {isSearching ? <Loader2 className="absolute right-2 top-2.5 w-4 h-4 text-blue-500 animate-spin" /> : value && value.mainName === query && !hideClear ? <button type="button" onMouseDown={(e) => { e.preventDefault(); setQuery(""); onSelect(null); setIsOpen(true); }} className="absolute right-2 top-2.5 text-slate-400 hover:text-red-500"><X className="w-4 h-4" /></button> : !hideClear ? <Search className="absolute right-2 top-2.5 w-4 h-4 text-slate-300" /> : null}
       {isOpen && (localResults.length > 0 || externalResults.length > 0) && (
         <div className="absolute z-50 w-full mt-2 bg-white border border-slate-100 rounded-2xl shadow-2xl max-h-64 overflow-y-auto">
@@ -272,7 +296,20 @@ const ComunaAutocomplete = ({ placeholder, value, onSelect, comunas }) => {
   const [query, setQuery] = useState(value || "");
   const [results, setResults] = useState([]);
   const [isOpen, setIsOpen] = useState(false);
+  const wrapperRef = useRef(null);
+
   useEffect(() => { setQuery(value || ""); }, [value]);
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (wrapperRef.current && !wrapperRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
   useEffect(() => {
     if (!isOpen) { setResults([]); return; }
     const safeQuery = normalizeString(query);
@@ -280,12 +317,12 @@ const ComunaAutocomplete = ({ placeholder, value, onSelect, comunas }) => {
   }, [query, isOpen, comunas, value]);
 
   return (
-    <div className="relative w-full">
-      <input type="text" value={query || ""} onFocus={() => setIsOpen(true)} onBlur={() => setTimeout(() => setIsOpen(false), 200)} onChange={(e) => { setQuery(e.target.value); setIsOpen(true); if (value && value !== e.target.value) onSelect(""); }} placeholder={placeholder} className="w-full py-4 pl-4 pr-10 text-[16px] font-bold text-slate-800 bg-transparent outline-none placeholder:text-slate-400" />
+    <div ref={wrapperRef} className="relative w-full">
+      <input type="text" value={query || ""} onFocus={() => setIsOpen(true)} onChange={(e) => { setQuery(e.target.value); setIsOpen(true); if (value && value !== e.target.value) onSelect(""); }} placeholder={placeholder} className="w-full py-4 pl-4 pr-10 text-[16px] font-bold text-slate-800 bg-transparent outline-none placeholder:text-slate-400" />
       {value === query && value !== "" ? <button type="button" onMouseDown={(e) => { e.preventDefault(); setQuery(""); onSelect(""); setIsOpen(true); }} className="absolute right-4 top-4 text-blue-500"><X className="w-5 h-5" /></button> : <Search className="absolute right-4 top-4 w-5 h-5 text-slate-300" />}
       {isOpen && results.length > 0 && (
-        <ul className="absolute z-50 w-full mt-2 bg-white border rounded-xl shadow-2xl max-h-64 overflow-y-auto">
-          {results.map((c) => (<li key={c.comuna} onMouseDown={(e) => { e.preventDefault(); onSelect(c.comuna); setIsOpen(false); }} className="p-3 cursor-pointer hover:bg-slate-50 border-b text-sm font-bold text-slate-800">{c.comuna}</li>))}
+        <ul className="absolute z-[100] w-full mt-2 bg-white border border-slate-100 rounded-2xl shadow-2xl max-h-64 overflow-y-auto">
+          {results.map((c) => (<li key={c.comuna} onMouseDown={(e) => { e.preventDefault(); onSelect(c.comuna); setIsOpen(false); }} className="p-3 px-4 cursor-pointer hover:bg-slate-50 border-b border-slate-50 text-sm font-bold text-slate-800">{c.comuna}</li>))}
         </ul>
       )}
     </div>
@@ -382,11 +419,15 @@ export default function App() {
         if (params.get('destino')) setDestCity({ mainName: decodeURIComponent(params.get('destino')), name: decodeURIComponent(params.get('destino')), isExternal: true });
       } else if (params.get('comuna')) {
         setCalcMode('carga');
-        const foundComuna = availableComunas.find(c => c.comuna.toLowerCase() === params.get('comuna').toLowerCase());
+        const queryComuna = normalizeString(params.get('comuna'));
+        let foundComuna = availableComunas.find(c => normalizeString(c.comuna) === queryComuna);
+        if (!foundComuna) {
+           foundComuna = availableComunas.find(c => normalizeString(c.comuna).includes(queryComuna) || queryComuna.includes(normalizeString(c.comuna)));
+        }
         setCargaComuna(foundComuna ? foundComuna.comuna : decodeURIComponent(params.get('comuna')).toUpperCase());
       } else {
         setCalcMode('carga');
-        setCargaComuna('SANTIAGO'); // CARGA INICIAL POR DEFECTO
+        setCargaComuna(''); // INICIA VACÍO PARA MOSTRAR INSTRUCCIÓN
       }
       setUrlParsed(true);
     }
@@ -454,7 +495,15 @@ export default function App() {
   const filteredStationsCarga = React.useMemo(() => {
     if (!cargaComuna) return [];
     const now = Date.now();
-    let list = cneStations.filter((s) => s.comuna === cargaComuna && getBestPrice(s.precios[fuelType]) > 0).map((s) => ({ ...s, isOutdated: s.timestampAct === 0 || now - s.timestampAct > 604800000, distToUser: userLocation ? getStraightLineDistance(userLocation.lat, userLocation.lon, s.lat, s.lon) : null, hasAuto: ["93", "95", "97", "diesel", "parafina"].some(t => s.precios[t]?.autoservicio > 0) }));
+    const query = normalizeString(cargaComuna);
+
+    let list = cneStations.filter((s) => {
+      const sCom = normalizeString(s.comuna);
+      // Coincidencia exacta o parcial
+      const isMatch = sCom === query || sCom.includes(query) || query.includes(sCom);
+      return isMatch && getBestPrice(s.precios[fuelType]) > 0;
+    }).map((s) => ({ ...s, isOutdated: s.timestampAct === 0 || now - s.timestampAct > 604800000, distToUser: userLocation ? getStraightLineDistance(userLocation.lat, userLocation.lon, s.lat, s.lon) : null, hasAuto: ["93", "95", "97", "diesel", "parafina"].some(t => s.precios[t]?.autoservicio > 0) }));
+    
     list.sort((a, b) => { if (a.isOutdated !== b.isOutdated) return a.isOutdated ? 1 : -1; if (sortBy === 'distance' && a.distToUser !== null && b.distToUser !== null) return a.distToUser - b.distToUser; return getBestPrice(a.precios[fuelType]) - getBestPrice(b.precios[fuelType]); });
     return list;
   }, [cneStations, cargaComuna, fuelType, sortBy, userLocation]);
@@ -599,7 +648,13 @@ export default function App() {
                   }
                 });
               }
-              const comunaStr = s.ubicacion?.nombre_comuna || s.nombre_comuna || s.comuna || s.comuna_nombre || "Desconocida";
+              let comunaStr = s.ubicacion?.nombre_comuna || s.nombre_comuna || s.comuna || s.comuna_nombre || "Desconocida";
+              
+              // Estandarización automática de Santiago a Santiago Centro
+              if (normalizeString(comunaStr) === "santiago") {
+                 comunaStr = "Santiago Centro";
+              }
+
               const regionNameStr = s.ubicacion?.nombre_region || s.nombre_region || s.region || "";
               const latVal = parseFloat(String(s.ubicacion?.latitud || s.latitud || s.ubicacion?.lat || "0").replace(",", ".")), lonVal = parseFloat(String(s.ubicacion?.longitud || s.longitud || s.ubicacion?.lng || "0").replace(",", "."));
               if (p["93"].asistido > 0 || p["93"].autoservicio > 0 || p["diesel"].asistido > 0 || p["diesel"].autoservicio > 0 || p["95"].asistido > 0 || p["95"].autoservicio > 0) {
@@ -612,14 +667,14 @@ export default function App() {
       } catch (e) {
         setAuthStatus("demo");
         const MOCK_STATIONS = [
-          { id: "m1", comuna: "SANTIAGO", distribuidor: "Copec", direccion: "Av. Providencia 123", lat: -33.4489, lon: -70.6693, precios: { 93: { asistido: 1320, autoservicio: 1300 }, 95: { asistido: 1360 }, 97: { asistido: 1400 }, diesel: { asistido: 1050 }, parafina: { asistido: 950 } }, actualizacion: "Hoy", regionId: "RM", regionName: "Región Metropolitana", timestampAct: Date.now() },
-          { id: "m2", comuna: "PROVIDENCIA", distribuidor: "Shell", direccion: "Los Leones 456", lat: -33.424, lon: -70.601, precios: { 93: { asistido: 1315, autoservicio: 1290 }, 95: { asistido: 1355 }, 97: { asistido: 1395 }, diesel: { asistido: 1045 } }, actualizacion: "Hoy", regionId: "RM", regionName: "Región Metropolitana", timestampAct: Date.now() },
-          { id: "m3", comuna: "LAS CONDES", distribuidor: "Aramco", direccion: "Apoquindo 789", lat: -33.414, lon: -70.570, precios: { 93: { asistido: 1330, autoservicio: 1310 }, 95: { asistido: 1370 }, 97: { asistido: 1410 }, diesel: { asistido: 1060 } }, actualizacion: "Hoy", regionId: "RM", regionName: "Región Metropolitana", timestampAct: Date.now() },
-          { id: "m4", comuna: "MAIPÚ", distribuidor: "Copec", direccion: "Pajaritos 100", lat: -33.510, lon: -70.758, precios: { 93: { asistido: 1300, autoservicio: 1280 }, 95: { asistido: 1340 }, 97: { asistido: 1380 }, diesel: { asistido: 1030 } }, actualizacion: "Hoy", regionId: "RM", regionName: "Región Metropolitana", timestampAct: Date.now() },
-          { id: "m5", comuna: "VIÑA DEL MAR", distribuidor: "Shell", direccion: "Av. Libertad 456", lat: -33.0153, lon: -71.5505, precios: { 93: { asistido: 1310 }, 95: { asistido: 1350 }, 97: { asistido: 1390 }, diesel: { asistido: 1040 }, parafina: { asistido: 940 } }, actualizacion: "Hoy", regionId: "V", regionName: "Valparaíso", timestampAct: Date.now() },
-          { id: "m6", comuna: "CONCEPCIÓN", distribuidor: "Aramco", direccion: "O'Higgins 200", lat: -36.826, lon: -73.049, precios: { 93: { asistido: 1325 }, 95: { asistido: 1365 }, 97: { asistido: 1405 }, diesel: { asistido: 1055 } }, actualizacion: "Hoy", regionId: "VIII", regionName: "Biobío", timestampAct: Date.now() },
-          { id: "m7", comuna: "ANTOFAGASTA", distribuidor: "Copec", direccion: "Av. Brasil 300", lat: -23.650, lon: -70.400, precios: { 93: { asistido: 1340 }, 95: { asistido: 1380 }, 97: { asistido: 1420 }, diesel: { asistido: 1070 } }, actualizacion: "Hoy", regionId: "II", regionName: "Antofagasta", timestampAct: Date.now() },
-          { id: "m8", comuna: "TEMUCO", distribuidor: "Shell", direccion: "Caupolicán 1010", lat: -38.7359, lon: -72.5904, precios: { 93: { asistido: 1340 }, 95: { asistido: 1380 }, diesel: { asistido: 1070 } }, actualizacion: "Hoy", regionId: "IX", regionName: "Araucanía", timestampAct: Date.now() }
+          { id: "m1", comuna: "Santiago Centro", distribuidor: "Copec", direccion: "Av. Providencia 123", lat: -33.4489, lon: -70.6693, precios: { 93: { asistido: 1320, autoservicio: 1300 }, 95: { asistido: 1360 }, 97: { asistido: 1400 }, diesel: { asistido: 1050 }, parafina: { asistido: 950 } }, actualizacion: "Hoy", regionId: "RM", regionName: "Región Metropolitana", timestampAct: Date.now() },
+          { id: "m2", comuna: "Providencia", distribuidor: "Shell", direccion: "Los Leones 456", lat: -33.424, lon: -70.601, precios: { 93: { asistido: 1315, autoservicio: 1290 }, 95: { asistido: 1355 }, 97: { asistido: 1395 }, diesel: { asistido: 1045 } }, actualizacion: "Hoy", regionId: "RM", regionName: "Región Metropolitana", timestampAct: Date.now() },
+          { id: "m3", comuna: "Las Condes", distribuidor: "Aramco", direccion: "Apoquindo 789", lat: -33.414, lon: -70.570, precios: { 93: { asistido: 1330, autoservicio: 1310 }, 95: { asistido: 1370 }, 97: { asistido: 1410 }, diesel: { asistido: 1060 } }, actualizacion: "Hoy", regionId: "RM", regionName: "Región Metropolitana", timestampAct: Date.now() },
+          { id: "m4", comuna: "Maipú", distribuidor: "Copec", direccion: "Pajaritos 100", lat: -33.510, lon: -70.758, precios: { 93: { asistido: 1300, autoservicio: 1280 }, 95: { asistido: 1340 }, 97: { asistido: 1380 }, diesel: { asistido: 1030 } }, actualizacion: "Hoy", regionId: "RM", regionName: "Región Metropolitana", timestampAct: Date.now() },
+          { id: "m5", comuna: "Viña del Mar", distribuidor: "Shell", direccion: "Av. Libertad 456", lat: -33.0153, lon: -71.5505, precios: { 93: { asistido: 1310 }, 95: { asistido: 1350 }, 97: { asistido: 1390 }, diesel: { asistido: 1040 }, parafina: { asistido: 940 } }, actualizacion: "Hoy", regionId: "V", regionName: "Valparaíso", timestampAct: Date.now() },
+          { id: "m6", comuna: "Concepción", distribuidor: "Aramco", direccion: "O'Higgins 200", lat: -36.826, lon: -73.049, precios: { 93: { asistido: 1325 }, 95: { asistido: 1365 }, 97: { asistido: 1405 }, diesel: { asistido: 1055 } }, actualizacion: "Hoy", regionId: "VIII", regionName: "Biobío", timestampAct: Date.now() },
+          { id: "m7", comuna: "Antofagasta", distribuidor: "Copec", direccion: "Av. Brasil 300", lat: -23.650, lon: -70.400, precios: { 93: { asistido: 1340 }, 95: { asistido: 1380 }, 97: { asistido: 1420 }, diesel: { asistido: 1070 } }, actualizacion: "Hoy", regionId: "II", regionName: "Antofagasta", timestampAct: Date.now() },
+          { id: "m8", comuna: "Temuco", distribuidor: "Shell", direccion: "Caupolicán 1010", lat: -38.7359, lon: -72.5904, precios: { 93: { asistido: 1340 }, 95: { asistido: 1380 }, diesel: { asistido: 1070 } }, actualizacion: "Hoy", regionId: "IX", regionName: "Araucanía", timestampAct: Date.now() }
         ];
         setCneStations(MOCK_STATIONS);
       } finally { setIsLoading(false); }
@@ -700,7 +755,7 @@ export default function App() {
             </div>
           </div>
         </div>
-        {idx > 0 && idx % 4 === 0 && <AdPlaceholder className="my-1 hidden lg:flex" />}
+        {idx > 0 && idx % 4 === 0 && <AdPlaceholder className="my-2" />}
       </React.Fragment>
     );
   };
@@ -772,9 +827,10 @@ export default function App() {
   };
 
   const renderCargaLeftPanel = () => (
-    <div className="space-y-6 pb-6 lg:pb-0 w-full flex flex-col items-center h-full">
-      <div className="mx-6 lg:mx-0 mt-4 lg:mt-0 space-y-3 w-full shrink-0">
-        <h3 className="text-sm font-extrabold text-slate-800 ml-2 uppercase tracking-wide">Tipo de combustible</h3>
+    <div className="w-full flex flex-col items-center pt-4 lg:pt-0 px-4 sm:px-6 lg:px-0">
+      {/* TARJETA: COMBUSTIBLE */}
+      <div className="w-full space-y-3 shrink-0">
+        <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">Tipo de combustible</h3>
         <div className="flex flex-wrap gap-2 pb-2">
           {FUEL_OPTIONS_CARGA.map((type) => {
             const isSelected = fuelType === type;
@@ -787,8 +843,9 @@ export default function App() {
         </div>
       </div>
 
-      <div className="mx-6 lg:mx-0 space-y-3 w-full shrink-0">
-        <h3 className="text-sm font-extrabold text-slate-800 ml-2 uppercase tracking-wide">Ubicación</h3>
+      {/* TARJETA: UBICACIÓN */}
+      <div className="mt-4 w-full space-y-3 shrink-0">
+        <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">Ubicación</h3>
         <div className="bg-white rounded-[2rem] p-2 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100">
           <ComunaAutocomplete placeholder="¿En qué comuna buscas?" value={cargaComuna} onSelect={handleSelectComuna} comunas={availableComunas} />
         </div>
@@ -814,36 +871,39 @@ export default function App() {
         )}
       </div>
 
-      {/* AQUÍ VAN LAS TARJETAS EN DESKTOP */}
+      {/* LISTA DE ESTACIONES EN EL FLUJO WEB (DESKTOP Y MOBILE) */}
       {cargaComuna && filteredStationsCarga.length > 0 && (
-        <div className="hidden lg:flex flex-col flex-1 mt-6 w-full min-h-[300px] overflow-hidden">
-          <div className="flex items-center justify-between pb-3 px-2 border-b border-slate-100 mb-4 shrink-0">
-             <span className="text-[11px] font-black text-slate-500 uppercase tracking-widest">{filteredStationsCarga.length} Resultados</span>
+        <div className="flex flex-col flex-1 mt-8 w-full animate-in fade-in duration-500">
+          <div className="flex items-center justify-between pb-3 px-1 border-b border-slate-200/60 mb-4 shrink-0">
+             <span className="text-[11px] font-black text-slate-500 uppercase tracking-widest">{filteredStationsCarga.length} Resultados en {cargaComuna}</span>
              {isUserNearCurrentComuna && (
                   <div className="flex bg-white shadow-sm border border-slate-200 p-1 rounded-xl">
-                    <button onClick={() => setSortBy('price')} className={`text-[10px] font-bold px-2 py-1 rounded-lg transition-colors cursor-pointer ${sortBy === 'price' ? 'bg-slate-800 text-white' : 'text-slate-500'}`}>Precio</button>
-                    <button onClick={() => setSortBy('distance')} className={`text-[10px] font-bold px-2 py-1 rounded-lg transition-colors cursor-pointer ${sortBy === 'distance' ? 'bg-slate-800 text-white' : 'text-slate-500'}`}>Cercanía</button>
+                    <button onClick={() => setSortBy('price')} className={`text-[10px] font-bold px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer ${sortBy === 'price' ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>Precio</button>
+                    <button onClick={() => setSortBy('distance')} className={`text-[10px] font-bold px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer ${sortBy === 'distance' ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>Cercanía</button>
                   </div>
              )}
           </div>
-          <div className="flex-1 overflow-y-auto no-scrollbar flex flex-col gap-3 pb-6 w-full px-1" ref={cargaListRef}>
+          <div className="flex-1 flex flex-col gap-4 pb-24 lg:pb-8 w-full" ref={cargaListRef}>
              {filteredStationsCarga.map((station, idx) => renderStationCard(station, idx))}
           </div>
         </div>
       )}
 
-      {/* ENLACES LEGALES MOBILE */}
-      <div className="lg:hidden mx-6 mt-4 mb-8 pt-4 flex flex-wrap justify-center gap-x-4 gap-y-2 pb-6 border-t border-slate-200/60 w-full shrink-0">
-         <button onClick={() => setLegalView('about')} className="text-[10px] font-extrabold text-slate-400 hover:text-blue-600 transition-colors cursor-pointer">Acerca de</button>
-         <button onClick={() => setLegalView('privacy')} className="text-[10px] font-extrabold text-slate-400 hover:text-blue-600 transition-colors cursor-pointer">Privacidad</button>
-         <button onClick={() => setLegalView('terms')} className="text-[10px] font-extrabold text-slate-400 hover:text-blue-600 transition-colors cursor-pointer">Términos</button>
-      </div>
+      {/* BOTÓN FLOTANTE MÓVIL PARA VER MAPA */}
+      {cargaComuna && filteredStationsCarga.length > 0 && (
+        <div className="lg:hidden fixed bottom-6 left-1/2 -translate-x-1/2 z-50">
+           <button onClick={() => setMobileStep(2)} className="bg-slate-900 text-white px-6 py-3.5 rounded-full font-black text-sm shadow-xl shadow-slate-900/20 flex items-center gap-2 whitespace-nowrap active:scale-95 transition-all cursor-pointer">
+              Ver Mapa <MapIcon className="w-4 h-4" />
+           </button>
+        </div>
+      )}
+
     </div>
   );
 
   const renderViajeLeftPanel = () => (
-    <div className="space-y-6 pb-6 lg:pb-0 w-full flex flex-col items-center">
-      <div className="mx-6 lg:mx-0 mt-4 lg:mt-0 bg-white rounded-[2rem] p-4 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 relative w-full">
+    <div className="space-y-6 pt-4 lg:pt-0 pb-6 lg:pb-0 w-full flex flex-col items-center px-4 sm:px-6 lg:px-0">
+      <div className="bg-white rounded-[2rem] p-4 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 relative w-full">
         <div className="absolute right-5 top-1/2 -translate-y-1/2 z-10">
           <button onClick={handleSwapCities} className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center text-slate-500 hover:bg-slate-200 transition-colors active:scale-95 cursor-pointer border border-slate-200/50"><ArrowUpDown className="w-4 h-4" /></button>
         </div>
@@ -880,8 +940,8 @@ export default function App() {
         {waypoints.length < 3 && (<button onClick={addWaypoint} className="mt-4 mb-1 text-xs font-bold text-blue-600 bg-blue-50 py-2.5 px-3 rounded-xl w-full flex items-center justify-center gap-1 hover:bg-blue-100 transition-colors cursor-pointer border border-blue-100/50 shadow-sm"><Plus className="w-4 h-4" /> Añadir parada</button>)}
       </div>
 
-      <div className="mx-6 lg:mx-0 space-y-3 w-full">
-         <h3 className="text-sm font-extrabold text-slate-800 ml-2 uppercase tracking-wide">Vehículo</h3>
+      <div className="space-y-3 w-full">
+         <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">Vehículo</h3>
          <div className="bg-white rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 overflow-hidden">
             <div className="flex items-center justify-between p-4 border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
                <div className="flex items-center gap-3"><div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-600"><Car className="w-5 h-5"/></div><span className="font-bold text-slate-700">Rendimiento</span></div>
@@ -909,14 +969,14 @@ export default function App() {
          </div>
       </div>
 
-      <div className="mx-6 hidden lg:block w-full"><AdPlaceholder /></div>
+      <div className="w-full mt-6"><AdPlaceholder /></div>
       
-      {/* Botón flotante móvil para ir a mapa */}
       <div className="lg:hidden fixed bottom-6 left-1/2 -translate-x-1/2 z-50">
          <button onClick={() => setMobileStep(2)} disabled={!originCity || !destCity} className="bg-slate-900 text-white px-6 py-3.5 rounded-full font-black text-sm shadow-xl shadow-slate-900/20 flex items-center gap-2 whitespace-nowrap active:scale-95 transition-all cursor-pointer disabled:opacity-50">
             Ver Mapa de Ruta <MapIcon className="w-4 h-4" />
          </button>
       </div>
+
     </div>
   );
 
@@ -952,20 +1012,23 @@ export default function App() {
     }
 
     return (
-      <div className="flex-1 w-full h-full flex flex-col lg:flex-row overflow-hidden relative pb-[20px] lg:pb-0 lg:rounded-[2.5rem] lg:shadow-xl lg:border-[8px] lg:border-white bg-slate-200">
+      <div className="w-full h-full flex flex-col relative bg-slate-200 lg:rounded-[2rem] lg:shadow-xl lg:border-[6px] lg:border-white lg:overflow-hidden">
         
         {/* Botón volver Mobile */}
         <div className="lg:hidden absolute top-4 left-4 z-20">
-            <button onClick={() => setMobileStep(1)} className="bg-white/90 backdrop-blur-md p-2.5 rounded-full shadow-lg border border-slate-100 text-slate-800 flex items-center justify-center cursor-pointer"><ChevronLeft className="w-6 h-6"/></button>
+            <button onClick={() => setMobileStep(1)} className="bg-white/95 backdrop-blur-md p-2.5 rounded-full shadow-lg text-slate-800 flex items-center justify-center cursor-pointer">
+              <ChevronLeft className="w-6 h-6"/>
+            </button>
         </div>
 
-        <div className="flex-1 w-full h-full relative">
-           {stationsMapUrl ? <iframe key={`map-${stationsMapUrl}-${mobileStep}`} src={stationsMapUrl} title="Mapa Estaciones" className="absolute inset-0 w-full h-full" style={{ border: 0 }} sandbox="allow-scripts allow-same-origin" /> : <div className="absolute inset-0 flex items-center justify-center text-slate-400"><Loader2 className="w-8 h-8 animate-spin" /></div>}
+        {/* MAPA PRINCIPAL */}
+        <div className="absolute inset-0 z-0">
+           {stationsMapUrl ? <iframe key={`map-${stationsMapUrl}-${mobileStep}`} src={stationsMapUrl} title="Mapa Estaciones" className="w-full h-full" style={{ border: 0 }} sandbox="allow-scripts allow-same-origin" /> : <div className="w-full h-full flex items-center justify-center text-slate-400"><Loader2 className="w-8 h-8 animate-spin" /></div>}
         </div>
         
-        {/* PANEL DETALLE ESTACION (DESKTOP) */}
+        {/* PANEL DETALLE ESTACION (DESKTOP FLOTANTE) */}
         {currentStation && (
-          <div className="hidden lg:flex w-[380px] xl:w-[420px] bg-white flex-col h-full border-l border-slate-200 z-10 shadow-[-15px_0_30px_rgba(0,0,0,0.03)] animate-in slide-in-from-right-8 duration-300">
+          <div className="hidden lg:flex absolute top-6 right-6 w-[380px] xl:w-[420px] bg-white/95 backdrop-blur-xl rounded-[2rem] shadow-[0_20px_60px_-15px_rgba(0,0,0,0.3)] z-[500] flex-col max-h-[calc(100%-48px)] border border-slate-100 animate-in slide-in-from-right-8 duration-300">
              {!showCalcModal ? (
                 <div className="flex flex-col flex-1 overflow-hidden">
                    <div className="flex justify-between items-start p-6 pb-4 shrink-0 border-b border-slate-100/50">
@@ -1024,7 +1087,7 @@ export default function App() {
 
                      {renderDiscountsSection(currentStation)}
                    </div>
-                   <div className="flex gap-2 p-6 pt-4 bg-slate-50/80 border-t border-slate-100 shrink-0">
+                   <div className="flex gap-2 p-6 pt-4 bg-slate-50/80 border-t border-slate-100 shrink-0 rounded-b-[2rem]">
                       <button onClick={() => { setCalcFuelType(fuelType); setShowCalcModal(true); }} className="flex-1 bg-slate-900 text-white rounded-xl py-3.5 text-[13px] font-extrabold flex items-center justify-center gap-2 shadow-xl shadow-slate-900/20 transition-all active:scale-95 cursor-pointer">
                         <Calculator className="w-4 h-4" /> Calcular
                       </button>
@@ -1080,7 +1143,7 @@ export default function App() {
                          </span>
                       </div>
                    </div>
-                   <div className="flex gap-2 p-6 pt-4 bg-slate-50/80 border-t border-slate-100 shrink-0">
+                   <div className="flex gap-2 p-6 pt-4 bg-slate-50/80 border-t border-slate-100 shrink-0 rounded-b-[2rem]">
                       <button onClick={() => {setShowCalcModal(false); setCalcVal("");}} className="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 py-3 rounded-xl font-bold text-[13px] transition-colors flex items-center justify-center gap-2 cursor-pointer"><ChevronLeft className="w-4 h-4" /> Volver a Detalles</button>
                    </div>
                 </div>
@@ -1098,13 +1161,13 @@ export default function App() {
                  <div className="flex flex-col flex-1 overflow-hidden">
                     <div className="flex justify-between items-start mb-4 shrink-0">
                        <div className="flex items-center gap-3">
-                          {currentStation.logo ? <img src={currentStation.logo} className="w-10 h-10 object-contain rounded-full border border-slate-100 p-1" /> : <Fuel className="w-8 h-8 text-slate-400" />}
+                          {currentStation.logo ? <img src={currentStation.logo} className="w-10 h-10 object-contain rounded-full border border-slate-100 p-1 bg-white" /> : <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center"><Fuel className="w-6 h-6 text-slate-400" /></div>}
                           <div>
                              <h3 className="font-black text-slate-900 text-[16px] leading-tight">{currentStation.distribuidor}</h3>
                              <p className="text-[11px] font-bold text-slate-500 mt-0.5">{currentStation.direccion}</p>
                           </div>
                        </div>
-                       <button onClick={(e) => { e.stopPropagation(); setCurrentStation(null); }} className="bg-slate-100 p-2.5 rounded-full hover:bg-slate-200 transition-colors shrink-0"><X className="w-4 h-4 text-slate-600"/></button>
+                       <button onClick={(e) => { e.stopPropagation(); setCurrentStation(null); }} className="bg-slate-100 p-2.5 rounded-full hover:bg-slate-200 transition-colors shrink-0 ml-2"><X className="w-4 h-4 text-slate-600"/></button>
                     </div>
                     
                     <div className="flex-1 overflow-y-auto no-scrollbar pb-2 px-1">
@@ -1149,12 +1212,12 @@ export default function App() {
                     </div>
                     <div className="flex gap-2 pt-3 border-t border-slate-100 mt-1 shrink-0 pb-6">
                        <button onClick={() => { setCalcFuelType(fuelType); setShowCalcModal(true); }} className="flex-1 bg-slate-900 text-white rounded-xl py-3.5 text-[13px] font-extrabold flex items-center justify-center gap-1.5 shadow-xl shadow-slate-900/20 active:scale-95 transition-transform"><Calculator className="w-4 h-4" /> Calcular</button>
-                       <a href={`https://www.google.com/maps/dir/?api=1&destination=${currentStation.lat},${currentStation.lon}`} target="_blank" rel="noopener noreferrer" className="flex-1 bg-blue-600 text-white rounded-xl py-3.5 text-[13px] font-extrabold flex items-center justify-center gap-1.5 shadow-xl shadow-blue-600/20 active:scale-95 transition-transform"><MapPin className="w-4 h-4" /> Llegar</a>
+                       <a href={`https://www.google.com/maps/dir/?api=1&destination=${currentStation.lat},${currentStation.lon}`} target="_blank" rel="noopener noreferrer" className="flex-1 bg-blue-600 text-white rounded-xl py-3.5 text-[13px] font-extrabold flex items-center justify-center gap-1.5 shadow-xl shadow-blue-600/20 active:scale-95 transition-transform"><MapPin className="w-3.5 h-3.5" /> Llegar</a>
                     </div>
                  </div>
               ) : (
                  <div className="flex flex-col flex-1 overflow-hidden">
-                    <div className="flex justify-between items-center mb-4 shrink-0">
+                    <div className="flex justify-between items-center mb-4 shrink-0 px-1">
                        <h3 className="font-black text-slate-900 flex items-center text-lg"><Calculator className="w-5 h-5 mr-2 text-slate-900"/> Calculadora</h3>
                        <button onClick={() => {setShowCalcModal(false); setCalcVal("");}} className="bg-slate-100 p-2.5 rounded-full hover:bg-slate-200 transition-colors cursor-pointer"><ChevronLeft className="w-4 h-4 text-slate-600"/></button>
                     </div>
@@ -1166,7 +1229,7 @@ export default function App() {
                        <div className="relative">
                          <input type="number" min="0" step={calcUnit === "liters" ? "0.1" : "1000"} value={calcVal || ""} onChange={(e) => setCalcVal(e.target.value)} className="w-full p-3 text-center text-xl border border-slate-200 rounded-[1.25rem] focus:ring-2 focus:ring-blue-500 outline-none font-black text-slate-900 bg-white shadow-sm" placeholder={calcUnit === "money" ? "Monto en $" : "Cantidad en Lts"} />
                        </div>
-                       <div className="bg-slate-100 p-4 rounded-2xl flex flex-col items-center justify-center">
+                       <div className="bg-slate-100 p-4 rounded-2xl flex flex-col items-center justify-center mt-4">
                           <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">{calcUnit === "money" ? "Recibirás aprox." : "Costo estimado"}</span>
                           <span className="text-2xl font-black text-slate-900">
                             {(() => {
@@ -1363,8 +1426,10 @@ export default function App() {
         </div>
           
         {/* PANEL DERECHO (MAPA Y RESULTADOS STICKY) */}
-        <div className={`flex-1 bg-transparent p-0 lg:p-0 overflow-visible relative flex-col ${mobileStep === 1 ? 'hidden lg:flex' : 'flex'} h-[calc(100vh-70px)] lg:h-auto`}>
-           {calcMode === 'carga' ? renderCargaRightPanel() : renderViajeRightPanel()}
+        <div className={`flex-1 w-full relative ${mobileStep === 1 ? 'hidden lg:block' : 'block'}`}>
+           <div className="lg:sticky lg:top-[90px] w-full h-[calc(100vh-70px)] lg:h-[calc(100vh-130px)] z-10 flex flex-col">
+              {calcMode === 'carga' ? renderCargaRightPanel() : renderViajeRightPanel()}
+           </div>
         </div>
       </main>
 
