@@ -34,7 +34,6 @@ const AdPlaceholder = ({ className = "" }) => {
   const adRef = useRef(false);
 
   useEffect(() => {
-    // Evitamos el doble renderizado en React Strict Mode
     if (!adRef.current) {
       try {
         if (window && typeof window !== "undefined") {
@@ -139,6 +138,9 @@ function extractRegionId(displayName) {
   return "RM";
 }
 
+// =========================
+// UTILIDADES MATEMÁTICAS / GEO
+// =========================
 function getStraightLineDistance(lat1, lon1, lat2, lon2) {
   if (lat1 === lat2 && lon1 === lon2) return 0;
   const R = 6371, dLat = ((lat2 - lat1) * Math.PI) / 180, dLon = ((lon2 - lon1) * Math.PI) / 180;
@@ -191,40 +193,69 @@ function getBestPrice(pObj) {
 // =========================
 function generateMapHtml(origin, dest, geometry, isRoundTrip, tolls = [], waypoints = []) {
   if (!origin || !dest) return "";
-  const geomStr = geometry ? JSON.stringify(geometry) : "null";
   const tollsJs = tolls.map(t => `L.marker([${t.lat}, ${t.lon}], {icon: L.divIcon({className: 'custom-leaflet-icon', iconSize: [20, 20], html: '<div style="background:#f59e0b;width:20px;height:20px;border:2px solid white;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 5px rgba(0,0,0,0.3);"><span style="color:white;font-size:11px;font-weight:900;">$</span></div>'})}).addTo(map).bindPopup("<b>${t.nombre}</b><br>$${t.precio}");`).join('\n');
   const waypointsJs = waypoints.map(wp => `L.marker([${wp.lat}, ${wp.lon}], {icon: L.divIcon({className: 'custom-leaflet-icon', iconSize: [12, 12], html: '<div style="background:#f59e0b;width:12px;height:12px;border:2px solid white;border-radius:50%;box-shadow:0 2px 5px rgba(0,0,0,0.3);"></div>'})}).addTo(map).bindPopup("<b>${wp.mainName}</b>");`).join('\n');
-  return `<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" /><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" /><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script><style>body{margin:0;padding:0;background:#e2e8f0;}#map{width:100vw;height:100vh;}.leaflet-control-attribution{display:none!important;} .custom-leaflet-icon { background: transparent; border: none; }</style></head><body><div id="map"></div><script>var map = L.map('map', { zoomControl: false }); L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png').addTo(map); var originCoord=[${origin.lat}, ${origin.lon}]; var destCoord=[${dest.lat}, ${dest.lon}]; L.marker(originCoord, {icon: L.divIcon({className:'custom-leaflet-icon', iconSize:[16,16], html:'<div style="background:#3b82f6;width:16px;height:16px;border:3px solid white;border-radius:50%;box-shadow:0 2px 5px rgba(0,0,0,0.3)"></div>'})}).addTo(map); L.marker(destCoord, {icon: L.divIcon({className:'custom-leaflet-icon', iconSize:[16,16], html:'<div style="background:#ef4444;width:16px;height:16px;border:3px solid white;border-radius:50%;box-shadow:0 2px 5px rgba(0,0,0,0.3)"></div>'})}).addTo(map); ${waypointsJs} var geom = ${geometry ? JSON.stringify(geometry) : 'null'}; if(geom && geom.coordinates){ var coords = geom.coordinates.map(function(c){return [c[1], c[0]];}); var poly = L.polyline(coords, {color: '#3b82f6', weight: 4, opacity: 0.9}).addTo(map); map.fitBounds(poly.getBounds(), {padding: [30,30]}); }else{ map.fitBounds(L.latLngBounds([originCoord, destCoord]), {padding: [30,30]}); } ${tollsJs}</script></body></html>`;
+  
+  // Padding adaptativo para esquivar el panel inferior de la ruta
+  return `<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" /><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" /><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script><style>body{margin:0;padding:0;background:#e2e8f0;}#map{width:100vw;height:100vh;}.leaflet-control-attribution{display:none!important;} .custom-leaflet-icon { background: transparent; border: none; }</style></head><body><div id="map"></div><script>var map = L.map('map', { zoomControl: false }); L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png').addTo(map); var originCoord=[${origin.lat}, ${origin.lon}]; var destCoord=[${dest.lat}, ${dest.lon}]; L.marker(originCoord, {icon: L.divIcon({className:'custom-leaflet-icon', iconSize:[16,16], html:'<div style="background:#3b82f6;width:16px;height:16px;border:3px solid white;border-radius:50%;box-shadow:0 2px 5px rgba(0,0,0,0.3)"></div>'})}).addTo(map); L.marker(destCoord, {icon: L.divIcon({className:'custom-leaflet-icon', iconSize:[16,16], html:'<div style="background:#ef4444;width:16px;height:16px;border:3px solid white;border-radius:50%;box-shadow:0 2px 5px rgba(0,0,0,0.3)"></div>'})}).addTo(map); ${waypointsJs} var geom = ${geometry ? JSON.stringify(geometry) : 'null'}; 
+  setTimeout(function() {
+      if(geom && geom.coordinates){ 
+         var coords = geom.coordinates.map(function(c){return [c[1], c[0]];}); 
+         var poly = L.polyline(coords, {color: '#3b82f6', weight: 4, opacity: 0.9}).addTo(map); 
+         map.fitBounds(poly.getBounds(), {paddingTopLeft: [50, 50], paddingBottomRight: [50, 250]});
+      } else { 
+         var b = L.latLngBounds([originCoord, destCoord]);
+         map.fitBounds(b, {paddingTopLeft: [50, 50], paddingBottomRight: [50, 250]});
+      } 
+  }, 100);
+  ${tollsJs}</script></body></html>`;
 }
 
-function generateStationsMapHtml(stations, selectedStation, userLoc, showRouteLine) {
+function generateStationsMapHtml(stations, selectedStation, userLoc, showRouteLine, fuelType) {
   if (!stations || stations.length === 0) return "";
   const selectedId = selectedStation?.id;
+  
   const markersJs = stations.map((s) => {
       const isSelected = selectedStation && s.id === selectedId;
       const color = isSelected ? "#3b82f6" : s.isOutdated ? "#cbd5e1" : "#94a3b8";
-      const extraStyle = isSelected ? "animation: pulse 1.5s infinite; transform: scale(1.5); z-index: 1000;" : "box-shadow: 0 4px 8px rgba(0,0,0,0.2);";
-      return `var m_${s.id.replace(/\W/g,"")} = L.marker([${s.lat}, ${s.lon}], {icon: L.divIcon({className: 'custom-leaflet-icon', html: '<div style="background:${color};width:100%;height:100%;border:2px solid white;border-radius:50%;${extraStyle}"></div>', iconSize:[16,16]}), zIndexOffset:${isSelected?1000:1}}).addTo(map); m_${s.id.replace(/\W/g,"")}.on('click', function(){ window.parent.postMessage({type:'STATION_CLICKED', id:'${s.id}'}, '*'); });`;
+      const extraStyle = isSelected ? "animation: pulse 1.5s infinite; transform: scale(1.1); z-index: 1000;" : "box-shadow: 0 4px 8px rgba(0,0,0,0.2);";
+      
+      const pObj = s.precios[fuelType];
+      const asis = pObj?.asistido || 0, auto = pObj?.autoservicio || 0;
+      const price = (asis > 0 && auto > 0) ? Math.min(asis, auto) : (asis > 0 ? asis : auto);
+      
+      // Mostrar logo en el pin si existe, si no, la inicial de la marca
+      const logoStr = s.logo ? `<img src="${s.logo}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;background:white;"/>` : `<span style="font-size:12px;font-weight:900;color:#334155;">${s.distribuidor.substring(0,1)}</span>`;
+      
+      // HTML del pin personalizado con logo y precio
+      const htmlStr = `<div style="display:flex;flex-direction:column;align-items:center;margin-top:-20px;"><div style="background:${color};width:28px;height:28px;border:2px solid white;border-radius:50%;display:flex;align-items:center;justify-content:center;overflow:hidden;${extraStyle}">${logoStr}</div><div style="background:white;color:#0f172a;font-size:11px;font-weight:900;padding:2px 6px;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,0.2);margin-top:3px;">$${price}</div></div>`;
+
+      return `var html_${s.id.replace(/\W/g,"")} = \`${htmlStr}\`; var m_${s.id.replace(/\W/g,"")} = L.marker([${s.lat}, ${s.lon}], {icon: L.divIcon({className: 'custom-leaflet-icon', html: html_${s.id.replace(/\W/g,"")}, iconSize:[60,60]}), zIndexOffset:${isSelected?1000:1}}).addTo(map); m_${s.id.replace(/\W/g,"")}.on('click', function(){ window.parent.postMessage({type:'STATION_CLICKED', id:'${s.id}'}, '*'); });`;
   }).join("\n");
   
   let userMarkerJs = userLoc ? `L.marker([${userLoc.lat}, ${userLoc.lon}], {icon: L.divIcon({className: 'custom-leaflet-icon', html: '<div style="background:#2563eb;width:100%;height:100%;border:3px solid white;border-radius:50%;box-shadow:0 0 0 4px rgba(37,99,235,0.4)"></div>', iconSize:[16,16]}), zIndexOffset: 2000}).addTo(map).bindPopup("<b>Tu ubicación</b>");` : "";
   
   let mapViewJs = "";
   if (showRouteLine && selectedStation && userLoc) {
-     mapViewJs = `var r = L.polyline([[${userLoc.lat}, ${userLoc.lon}], [${selectedStation.lat}, ${selectedStation.lon}]], {color:'#3b82f6', weight:3, dashArray:'6,8'}).addTo(map); map.fitBounds(r.getBounds(), {padding:[40,40]});`;
+     mapViewJs = `
+       var r = L.polyline([[${userLoc.lat}, ${userLoc.lon}], [${selectedStation.lat}, ${selectedStation.lon}]], {color:'#3b82f6', weight:3, dashArray:'6,8'}).addTo(map); 
+       map.fitBounds(r.getBounds(), {paddingTopLeft: [50, 50], paddingBottomRight: [50, 250]});
+     `;
   } else if (selectedStation) {
+     // Desplazamiento hacia abajo para que el pin suba y evite el panel inferior en todas las pantallas
      mapViewJs = `
        map.setView([${selectedStation.lat}, ${selectedStation.lon}], 14);
        setTimeout(function() {
-          if (window.innerWidth >= 1024) {
-             map.panBy([180, 0], {animate: true, duration: 0.5});
-          } else {
-             map.panBy([0, 150], {animate: true, duration: 0.5});
-          }
+          map.panBy([0, 150], {animate: true, duration: 0.5});
        }, 200);
      `;
   } else {
-     mapViewJs = `map.fitBounds(L.latLngBounds([${stations.map(s=>`[${s.lat},${s.lon}]`).join(",")}]), {padding:[20,20]});`;
+     mapViewJs = `
+       setTimeout(function() {
+          var b = L.latLngBounds([${stations.map(s=>`[${s.lat},${s.lon}]`).join(",")}]);
+          map.fitBounds(b, {paddingTopLeft: [50, 50], paddingBottomRight: [50, 250]});
+       }, 100);
+     `;
   }
 
   return `<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" /><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" /><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script><style>body{margin:0;padding:0;background:#e2e8f0;}#map{width:100vw;height:100vh;}.leaflet-control-attribution{display:none!important;} .custom-leaflet-icon { background: transparent; border: none; } @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7); } 70% { box-shadow: 0 0 0 15px rgba(59, 130, 246, 0); } 100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); } }</style></head><body><div id="map"></div><script>var map = L.map('map', { zoomControl: false }); L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png').addTo(map); ${markersJs} ${userMarkerJs} ${mapViewJs}</script></body></html>`;
@@ -338,10 +369,10 @@ const ComunaAutocomplete = ({ placeholder, value, onSelect, comunas }) => {
 // =====================================================================
 export default function App() {
   const [calcMode, setCalcMode] = useState("carga");
-  const [fuelType, setFuelType] = useState(() => localStorage.getItem('bencinaapp_fuel') || "93");
-  const [efficiencyKml, setEfficiencyKml] = useState(() => localStorage.getItem('bencinaapp_eff') || "12");
-  const [includeTolls, setIncludeTolls] = useState(() => localStorage.getItem('bencinaapp_tolls') !== "false");
-  const [recentComunas, setRecentComunas] = useState(() => JSON.parse(localStorage.getItem('bencinaapp_recent_comunas') || '[]'));
+  const [fuelType, setFuelType] = useState(() => localStorage.getItem('andesruta_fuel') || "93");
+  const [efficiencyKml, setEfficiencyKml] = useState(() => localStorage.getItem('andesruta_eff') || "12");
+  const [includeTolls, setIncludeTolls] = useState(() => localStorage.getItem('andesruta_tolls') !== "false");
+  const [recentComunas, setRecentComunas] = useState(() => JSON.parse(localStorage.getItem('andesruta_recent_comunas') || '[]'));
 
   const [mobileStep, setMobileStep] = useState(1);
   const cargaListRef = useRef(null);
@@ -442,7 +473,7 @@ export default function App() {
         setCargaComuna(foundComuna ? foundComuna.comuna : decodeURIComponent(params.get('comuna')).toUpperCase());
       } else {
         setCalcMode('carga');
-        setCargaComuna(''); // INICIA VACÍO PARA MOSTRAR INSTRUCCIÓN
+        setCargaComuna(''); 
       }
       setUrlParsed(true);
     }
@@ -485,7 +516,7 @@ export default function App() {
     setCargaComuna(c); setSortBy('price'); 
     if (c) {
       const up = [c, ...recentComunas.filter(rc => rc !== c)].slice(0, 3);
-      setRecentComunas(up); localStorage.setItem('bencinaapp_recent_comunas', JSON.stringify(up));
+      setRecentComunas(up); localStorage.setItem('andesruta_recent_comunas', JSON.stringify(up));
       if (window.innerWidth < 1024) setMobileStep(2);
     }
   };
@@ -526,7 +557,7 @@ export default function App() {
   const isUserNearCurrentComuna = React.useMemo(() => userLocation && filteredStationsCarga.some(s => s.distToUser !== null && s.distToUser <= 50), [userLocation, filteredStationsCarga]);
 
   useEffect(() => { if (showSettingsModal) { setTempEff(efficiencyKml || "12"); setTempFuel(fuelType); setTempTolls(includeTolls); } }, [showSettingsModal, efficiencyKml, fuelType, includeTolls]);
-  const handleSaveSettings = () => { setEfficiencyKml(tempEff); setFuelType(tempFuel); setIncludeTolls(tempTolls); localStorage.setItem('bencinaapp_eff', tempEff); localStorage.setItem('bencinaapp_fuel', tempFuel); localStorage.setItem('bencinaapp_tolls', tempTolls); setShowSettingsModal(false); };
+  const handleSaveSettings = () => { setEfficiencyKml(tempEff); setFuelType(tempFuel); setIncludeTolls(tempTolls); localStorage.setItem('andesruta_eff', tempEff); localStorage.setItem('andesruta_fuel', tempFuel); localStorage.setItem('andesruta_tolls', tempTolls); setShowSettingsModal(false); };
 
   // Listener para clics en los pines del mapa
   useEffect(() => {
@@ -547,7 +578,7 @@ export default function App() {
 
   useEffect(() => {
     if (calcMode === "carga" && cargaComuna && filteredStationsCarga.length > 0) {
-      const url = URL.createObjectURL(new Blob([generateStationsMapHtml(filteredStationsCarga, currentStation, userLocation, userLocation && currentStation?.distToUser <= 50)], { type: "text/html" }));
+      const url = URL.createObjectURL(new Blob([generateStationsMapHtml(filteredStationsCarga, currentStation, userLocation, userLocation && currentStation?.distToUser <= 50, fuelType)], { type: "text/html" }));
       setStationsMapUrl(url); return () => URL.revokeObjectURL(url);
     } else setStationsMapUrl("");
   }, [cargaComuna, fuelType, currentStation, filteredStationsCarga, calcMode, userLocation]);
@@ -568,9 +599,7 @@ export default function App() {
 
       const getRouteData = async (points) => {
         const coordsOSRM = points.map(p => `${p.lon},${p.lat}`).join(';');
-        
         console.log("🛣️ Consultando API de rutas con puntos:", coordsOSRM);
-
         return await Promise.any([{ url: `https://router.project-osrm.org/route/v1/driving/${coordsOSRM}?overview=full&geometries=geojson`, type: "osrm" }, { url: `https://routing.openstreetmap.de/routed-car/route/v1/driving/${coordsOSRM}?overview=full&geometries=geojson`, type: "osrm" }, { url: "https://api.openrouteservice.org/v2/directions/driving-car", type: "ors", body: { coordinates: points.map(p => [p.lon, p.lat]) } }].map(async (ep) => {
           if (ep.type === "ors") {
             const res = await fetch(ep.url, { method: "POST", headers: { "Authorization": "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjM5MDY2ZmJlZDhhNzRkYTZiMmVkOWI5MmI2NDcyM2Q1IiwiaCI6Im11cm11cjY0In0=", "Content-Type": "application/json" }, signal: controller.signal, body: JSON.stringify(ep.body) });
@@ -629,9 +658,8 @@ export default function App() {
         const loginRes = await fetch(RUTA_LOGIN, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: "email=nicolas0645@gmail.com&password=12qwaszxL" });
         console.log("✅ Status Login CNE:", loginRes.status);
         
-        if (!loginRes.ok) throw new Error(`Error en Login HTTP: ${loginRes.status}`);
+        if (!loginRes.ok) throw new Error(`Error en Login.`);
         const loginData = await loginRes.json();
-        
         const token = loginData.data?.token || loginData.token;
         if (token) {
           console.log("🔑 Token obtenido correctamente. Consultando Estaciones...");
@@ -639,7 +667,6 @@ export default function App() {
           const stRes = await fetch(RUTA_ESTACIONES, { headers: { Token: token, Authorization: `Bearer ${token}`, Accept: "application/json" } });
           console.log("✅ Status Estaciones CNE:", stRes.status);
           const stData = await stRes.json();
-          
           const raw = Array.isArray(stData) ? stData : stData.data || stData.estaciones || [];
           console.log(`📊 Se recibieron ${raw.length} estaciones crudas desde la API.`);
           
@@ -867,7 +894,7 @@ export default function App() {
           {FUEL_OPTIONS_CARGA.map((type) => {
             const isSelected = fuelType === type;
             return (
-              <button key={type} onClick={() => { setFuelType(type); localStorage.setItem('bencinaapp_fuel', type); }} className={`px-4 py-2.5 rounded-2xl text-sm font-bold transition-all flex-grow sm:flex-grow-0 text-center cursor-pointer ${isSelected ? "bg-slate-900 text-white shadow-md" : "bg-white text-slate-600 shadow-[0_4px_20px_rgb(0,0,0,0.03)] hover:bg-slate-50 border border-slate-200/60"}`}>
+              <button key={type} onClick={() => { setFuelType(type); localStorage.setItem('andesruta_fuel', type); }} className={`px-4 py-2.5 rounded-2xl text-sm font-bold transition-all flex-grow sm:flex-grow-0 text-center cursor-pointer ${isSelected ? "bg-slate-900 text-white shadow-md" : "bg-white text-slate-600 shadow-[0_4px_20px_rgb(0,0,0,0.03)] hover:bg-slate-50 border border-slate-200/60"}`}>
                 {type === "diesel" ? "Diesel" : type === "parafina" ? "Parafina" : type + " Oct"}
               </button>
             )
@@ -930,12 +957,6 @@ export default function App() {
         </div>
       )}
 
-      {/* ENLACES LEGALES MOBILE */}
-      <div className="lg:hidden mx-6 mt-4 mb-8 pt-4 flex flex-wrap justify-center gap-x-4 gap-y-2 pb-6 border-t border-slate-200/60 w-full shrink-0">
-         <button onClick={() => setLegalView('about')} className="text-[10px] font-extrabold text-slate-400 hover:text-blue-600 transition-colors cursor-pointer">Acerca de</button>
-         <button onClick={() => setLegalView('privacy')} className="text-[10px] font-extrabold text-slate-400 hover:text-blue-600 transition-colors cursor-pointer">Privacidad</button>
-         <button onClick={() => setLegalView('terms')} className="text-[10px] font-extrabold text-slate-400 hover:text-blue-600 transition-colors cursor-pointer">Términos</button>
-      </div>
     </div>
   );
 
@@ -984,14 +1005,14 @@ export default function App() {
             <div className="flex items-center justify-between p-4 border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
                <div className="flex items-center gap-3"><div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-600"><Car className="w-5 h-5"/></div><span className="font-bold text-slate-700">Rendimiento</span></div>
                <div className="flex items-center gap-1 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200">
-                  <input type="number" step="0.1" min="1" className="w-10 bg-transparent outline-none font-black text-right text-slate-900" value={efficiencyKml || ""} onChange={(e) => { setEfficiencyKml(e.target.value); localStorage.setItem('bencinaapp_eff', e.target.value); }} />
+                  <input type="number" step="0.1" min="1" className="w-10 bg-transparent outline-none font-black text-right text-slate-900" value={efficiencyKml || ""} onChange={(e) => { setEfficiencyKml(e.target.value); localStorage.setItem('andesruta_eff', e.target.value); }} />
                   <span className="text-sm font-semibold text-slate-500">Km/L</span>
                </div>
             </div>
             <div className="flex items-center justify-between p-4 border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
                <div className="flex items-center gap-3"><div className="w-10 h-10 rounded-full bg-orange-50 flex items-center justify-center text-orange-500"><Fuel className="w-5 h-5"/></div><span className="font-bold text-slate-700">Combustible</span></div>
                <div className="relative">
-                 <select className="bg-slate-50 pl-3 pr-8 py-2 rounded-xl border border-slate-200 font-black text-slate-900 outline-none cursor-pointer appearance-none" value={fuelType} onChange={(e) => { setFuelType(e.target.value); localStorage.setItem('bencinaapp_fuel', e.target.value); }}>
+                 <select className="bg-slate-50 pl-3 pr-8 py-2 rounded-xl border border-slate-200 font-black text-slate-900 outline-none cursor-pointer appearance-none" value={fuelType} onChange={(e) => { setFuelType(e.target.value); localStorage.setItem('andesruta_fuel', e.target.value); }}>
                     <option value="93">93 oct</option><option value="95">95 oct</option><option value="97">97 oct</option><option value="diesel">Diesel</option>
                  </select>
                  <ChevronDown className="absolute right-2.5 top-2.5 w-4 h-4 text-slate-400 pointer-events-none" />
@@ -999,7 +1020,7 @@ export default function App() {
             </div>
             <div className="flex items-center justify-between p-4 hover:bg-slate-50/50 transition-colors">
                <div className="flex items-center gap-3"><div className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${includeTolls ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}><Ticket className="w-5 h-5"/></div><span className={`font-bold transition-colors ${includeTolls ? 'text-slate-700' : 'text-slate-400'}`}>Peajes y TAG</span></div>
-               <div className="flex items-center gap-2 cursor-pointer" onClick={() => { const newVal = !includeTolls; setIncludeTolls(newVal); localStorage.setItem('bencinaapp_tolls', newVal); }}>
+               <div className="flex items-center gap-2 cursor-pointer" onClick={() => { const newVal = !includeTolls; setIncludeTolls(newVal); localStorage.setItem('andesruta_tolls', newVal); }}>
                  <span className={`text-xs font-bold transition-colors ${includeTolls ? 'text-emerald-600' : 'text-slate-400'}`}>{includeTolls ? 'Automático' : 'Omitir'}</span>
                  <div className={`w-10 h-6 rounded-full relative flex items-center px-1 transition-colors duration-300 ${includeTolls ? 'bg-emerald-500' : 'bg-slate-300'}`}><div className={`w-4 h-4 bg-white rounded-full absolute transition-all duration-300 ${includeTolls ? 'translate-x-4' : 'translate-x-0'}`}></div></div>
                </div>
@@ -1009,9 +1030,10 @@ export default function App() {
 
       <div className="hidden lg:block w-full"><AdPlaceholder /></div>
       
-      <div className="lg:hidden fixed bottom-6 left-1/2 -translate-x-1/2 z-50">
-         <button onClick={() => setMobileStep(2)} disabled={!originCity || !destCity} className="bg-slate-900 text-white px-6 py-3.5 rounded-full font-black text-sm shadow-xl shadow-slate-900/20 flex items-center gap-2 whitespace-nowrap active:scale-95 transition-all cursor-pointer disabled:opacity-50">
-            Ver Mapa de Ruta <MapIcon className="w-4 h-4" />
+      {/* Botón de Calcular Viaje Fijo al final del formulario en Móvil */}
+      <div className="lg:hidden w-full mt-4 shrink-0 pb-6">
+         <button onClick={() => setMobileStep(2)} disabled={!originCity || !destCity} className="w-full bg-slate-900 text-white rounded-[1.25rem] py-4 font-extrabold text-[15px] flex items-center justify-center gap-2 shadow-xl shadow-slate-900/20 active:scale-[0.98] transition-all cursor-pointer disabled:opacity-50">
+            Calcular Viaje <ArrowRight className="w-5 h-5" />
          </button>
       </div>
 
@@ -1064,135 +1086,10 @@ export default function App() {
            {stationsMapUrl ? <iframe key={`map-${stationsMapUrl}-${mobileStep}`} src={stationsMapUrl} title="Mapa Estaciones" className="w-full h-full" style={{ border: 0 }} sandbox="allow-scripts allow-same-origin" /> : <div className="w-full h-full flex items-center justify-center text-slate-400"><Loader2 className="w-8 h-8 animate-spin" /></div>}
         </div>
         
-        {/* PANEL DETALLE ESTACION (DESKTOP FLOTANTE) */}
-        {currentStation && (
-          <div className="hidden lg:flex absolute top-6 right-6 w-[380px] xl:w-[420px] bg-white/95 backdrop-blur-xl rounded-[2rem] shadow-[0_20px_60px_-15px_rgba(0,0,0,0.3)] z-[500] flex-col max-h-[calc(100%-48px)] border border-slate-100 animate-in slide-in-from-right-8 duration-300">
-             {!showCalcModal ? (
-                <div className="flex flex-col flex-1 overflow-hidden">
-                   <div className="flex justify-between items-start p-6 pb-4 shrink-0 border-b border-slate-100/50">
-                     <div className="flex items-center gap-3 pr-4">
-                       {currentStation.logo ? (<img src={currentStation.logo} alt={currentStation.distribuidor} className="h-10 w-10 object-contain rounded-full bg-white border border-slate-100 p-1 shrink-0" onError={(e) => { e.target.style.display = "none"; e.target.nextSibling.style.display = "block"; }} />) : null}
-                       <Fuel className="w-8 h-8 text-slate-400 shrink-0" style={{ display: currentStation.logo ? "none" : "block" }} />
-                       <div className="flex flex-col">
-                         <h3 className="font-black text-slate-900 text-lg leading-tight">{currentStation.distribuidor}</h3>
-                         <p className="text-xs font-bold text-slate-500 leading-snug mt-0.5">{currentStation.direccion}</p>
-                       </div>
-                     </div>
-                     <button onClick={() => setCurrentStation(null)} className="bg-slate-100 p-2 rounded-full hover:bg-slate-200 transition-colors cursor-pointer shrink-0"><X className="w-5 h-5 text-slate-600"/></button>
-                   </div>
-                   <div className="overflow-y-auto no-scrollbar p-6 pt-4 flex-1">
-                      {(() => {
-                        const pBase = currentStation.precios[fuelType];
-                        const hasAuto = ["93", "95", "97", "diesel", "parafina"].some(t => currentStation.precios[t]?.autoservicio > 0);
-                        const hasAsis = ["93", "95", "97", "diesel", "parafina"].some(t => currentStation.precios[t]?.asistido > 0);
-                        if (hasAuto && hasAsis) {
-                          const diffBase = (pBase?.autoservicio > 0 && pBase?.asistido > 0 && pBase.autoservicio < pBase.asistido) ? (pBase.asistido - pBase.autoservicio) : 0;
-                          return (
-                            <div className="mb-4">
-                              <div className="flex bg-slate-200/60 p-1.5 rounded-xl">
-                                <button onClick={()=>setServiceMode("asistido")} className={`flex-1 text-[13px] font-bold py-2.5 rounded-lg transition-all cursor-pointer ${serviceMode === 'asistido' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>👨‍🔧 Asistido</button>
-                                <button onClick={()=>setServiceMode("autoservicio")} className={`flex-1 text-[13px] font-bold py-2.5 rounded-lg transition-all cursor-pointer flex justify-center items-center ${serviceMode === 'autoservicio' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
-                                  ⛽ Auto {diffBase > 0 ? <span className="text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-md ml-1 text-[10px]">-$ {diffBase}</span> : ''}
-                                </button>
-                              </div>
-                              <div className="mt-2 text-[10px] text-slate-500 flex items-start gap-1 leading-tight px-1">
-                                  <Info className="w-3.5 h-3.5 shrink-0 text-blue-500" />
-                                  <span><b>Autoservicio:</b> Tú cargas el combustible (más barato). <b>Asistido:</b> Un atendedor realiza la carga.</span>
-                              </div>
-                            </div>
-                          )
-                        }
-                        return null;
-                     })()}
-
-                     <div className="mb-6">
-                       <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-3">Todos los precios ({serviceMode})</h4>
-                       <div className="grid grid-cols-2 gap-2">
-                          {["93", "95", "97", "diesel", "parafina"].map((t) => {
-                            const p = currentStation.precios[t];
-                            const priceToShow = p?.[serviceMode];
-                            if (!priceToShow || priceToShow === 0) return null;
-                            const isThisFuelSelected = t === fuelType;
-                            return (
-                              <div key={t} className={`rounded-xl p-3 flex justify-between items-center border ${isThisFuelSelected ? 'bg-blue-50 border-blue-200' : 'bg-white border-slate-200'}`}>
-                                <span className={`text-[11px] font-bold uppercase ${isThisFuelSelected ? 'text-blue-700' : 'text-slate-500'}`}>{t === "diesel" ? "Diesel" : t === "parafina" ? "Paraf" : `${t} Oct`}</span>
-                                <span className={`text-[15px] font-black ${isThisFuelSelected ? 'text-blue-700' : 'text-slate-900'}`}>{formatCLP(priceToShow)}</span>
-                              </div>
-                            );
-                          })}
-                       </div>
-                     </div>
-
-                     {renderDiscountsSection(currentStation)}
-                   </div>
-                   <div className="flex gap-2 p-6 pt-4 bg-slate-50/80 border-t border-slate-100 shrink-0 rounded-b-[2rem]">
-                      <button onClick={() => { setCalcFuelType(fuelType); setShowCalcModal(true); }} className="flex-1 bg-slate-900 text-white rounded-xl py-3.5 text-[13px] font-extrabold flex items-center justify-center gap-2 shadow-xl shadow-slate-900/20 transition-all active:scale-95 cursor-pointer">
-                        <Calculator className="w-4 h-4" /> Calcular
-                      </button>
-                      <a href={`https://www.google.com/maps/dir/?api=1&destination=${currentStation.lat},${currentStation.lon}`} target="_blank" rel="noopener noreferrer" className="flex-1 bg-blue-600 text-white rounded-xl py-3.5 text-[13px] font-extrabold flex items-center justify-center gap-2 shadow-xl shadow-blue-600/20 transition-all active:scale-95 cursor-pointer">
-                        <MapPin className="w-4 h-4" /> Llegar
-                      </a>
-                   </div>
-                </div>
-             ) : (
-                <div className="flex flex-col flex-1 overflow-hidden">
-                   <div className="flex justify-between items-center p-6 pb-4 shrink-0 border-b border-slate-100/50">
-                      <h3 className="font-black text-slate-900 flex items-center text-lg"><Calculator className="w-5 h-5 mr-2 text-slate-900"/> Calculadora</h3>
-                      <button onClick={() => {setShowCalcModal(false); setCalcVal("");}} className="bg-slate-100 p-2 rounded-full hover:bg-slate-200 transition-colors cursor-pointer"><ChevronLeft className="w-4 h-4 text-slate-600"/></button>
-                   </div>
-                   <div className="p-6 space-y-6 overflow-y-auto no-scrollbar flex-1">
-                      <div>
-                        <div className="flex items-center gap-2 mb-0.5">
-                          <p className="text-sm font-bold text-slate-700">{currentStation.distribuidor}</p>
-                          <span className="text-[9px] font-black text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded-full uppercase border border-slate-200">{serviceMode}</span>
-                        </div>
-                        <p className="text-xs text-slate-500">{currentStation.direccion}</p>
-                      </div>
-                      <div className="flex flex-wrap gap-1.5 mb-4">
-                        {["93", "95", "97", "diesel", "parafina"].map(t => {
-                           const priceForT = currentStation.precios[t]?.[serviceMode];
-                           if(!priceForT || priceForT === 0) return null;
-                           const isSel = t === calcFuelType;
-                           return (
-                             <button key={t} onClick={() => setCalcFuelType(t)} className={`px-2.5 py-1.5 rounded-lg text-[10px] font-bold transition-all flex-grow text-center cursor-pointer ${isSel ? 'bg-blue-600 text-white shadow-md' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}>
-                               {t === "diesel" ? "Diesel" : t === "parafina" ? "Parafina" : `${t} Oct`}
-                             </button>
-                           )
-                        })}
-                      </div>
-                      <div className="flex flex-col gap-3 mb-4">
-                         <div className="flex bg-slate-200/60 p-1.5 rounded-[1rem]">
-                            <button onClick={() => { setCalcUnit("money"); setCalcVal(""); }} className={`flex-1 text-[13px] font-bold px-3 py-2.5 rounded-xl transition-all cursor-pointer ${calcUnit === 'money' ? 'bg-white text-slate-800 shadow-sm scale-[1.02]' : 'text-slate-500 hover:text-slate-700'}`}>💵 Pesos ($)</button>
-                            <button onClick={() => { setCalcUnit("liters"); setCalcVal(""); }} className={`flex-1 text-[13px] font-bold px-3 py-2.5 rounded-xl transition-all cursor-pointer ${calcUnit === 'liters' ? 'bg-white text-slate-800 shadow-sm scale-[1.02]' : 'text-slate-500 hover:text-slate-700'}`}>⛽ Litros (L)</button>
-                         </div>
-                         <div className="relative">
-                           <input type="number" min="0" step={calcUnit === "liters" ? "0.1" : "1000"} value={calcVal || ""} onChange={(e) => setCalcVal(e.target.value)} className="w-full p-4 text-center text-xl border border-slate-200 rounded-[1.25rem] focus:ring-2 focus:ring-blue-500 outline-none font-black text-slate-900 bg-white shadow-sm" placeholder={calcUnit === "money" ? "Monto en $" : "Cantidad en Lts"} />
-                         </div>
-                      </div>
-                      <div className="bg-slate-100 p-4 rounded-2xl flex flex-col items-center justify-center">
-                         <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">{calcUnit === "money" ? "Recibirás aprox." : "Costo estimado"}</span>
-                         <span className="text-3xl font-black text-slate-900">
-                           {(() => {
-                              const p = currentStation.precios[calcFuelType]?.[serviceMode];
-                              const v = parseFloat(calcVal) || 0;
-                              if (!p || p === 0) return "---";
-                              return calcUnit === "money" ? `${(v / p).toFixed(1)} Lts` : formatCLP(v * p);
-                           })()}
-                         </span>
-                      </div>
-                   </div>
-                   <div className="flex gap-2 p-6 pt-4 bg-slate-50/80 border-t border-slate-100 shrink-0 rounded-b-[2rem]">
-                      <button onClick={() => {setShowCalcModal(false); setCalcVal("");}} className="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 py-3 rounded-xl font-bold text-[13px] transition-colors flex items-center justify-center gap-2 cursor-pointer"><ChevronLeft className="w-4 h-4" /> Volver a Detalles</button>
-                   </div>
-                </div>
-             )}
-          </div>
-        )}
-        
-        {/* PANEL DETALLE / LISTA MOBILE (BOTTOM SHEET) */}
-        <div className="lg:hidden absolute bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xl rounded-t-[2.5rem] p-5 sm:p-6 shadow-[0_-15px_40px_rgba(0,0,0,0.12)] border-t border-slate-200 z-30 flex flex-col max-h-[85vh] transition-all duration-300">
-           {/* Pestañita Drag Handle */}
-           <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-5 shrink-0"></div>
+        {/* PANEL DETALLE / LISTA MOBILE Y DESKTOP (BOTTOM SHEET) */}
+        <div className="absolute bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xl lg:rounded-b-[1rem] rounded-t-[2.5rem] lg:rounded-t-[2rem] p-5 sm:p-6 shadow-[0_-15px_40px_rgba(0,0,0,0.12)] border-t border-slate-200 z-30 flex flex-col max-h-[85vh] lg:max-h-[60vh] transition-all duration-300">
+           {/* Pestañita Drag Handle solo visible en mobile */}
+           <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-5 shrink-0 lg:hidden"></div>
 
            {currentStation ? (
               !showCalcModal ? (
@@ -1244,11 +1141,10 @@ export default function App() {
                           })}
                        </div>
                        
-                       {/* DESCUENTOS EN MÓVIL */}
                        {renderDiscountsSection(currentStation)}
 
                     </div>
-                    <div className="flex gap-2 pt-3 border-t border-slate-100 mt-1 shrink-0 pb-6">
+                    <div className="flex gap-2 pt-3 border-t border-slate-100 mt-1 shrink-0 lg:pb-0 pb-6">
                        <button onClick={() => { setCalcFuelType(fuelType); setShowCalcModal(true); }} className="flex-1 bg-slate-900 text-white rounded-xl py-3.5 text-[13px] font-extrabold flex items-center justify-center gap-1.5 shadow-xl shadow-slate-900/20 active:scale-95 transition-transform"><Calculator className="w-4 h-4" /> Calcular</button>
                        <a href={`https://www.google.com/maps/dir/?api=1&destination=${currentStation.lat},${currentStation.lon}`} target="_blank" rel="noopener noreferrer" className="flex-1 bg-blue-600 text-white rounded-xl py-3.5 text-[13px] font-extrabold flex items-center justify-center gap-1.5 shadow-xl shadow-blue-600/20 active:scale-95 transition-transform"><MapPin className="w-3.5 h-3.5" /> Llegar</a>
                     </div>
@@ -1282,7 +1178,8 @@ export default function App() {
                  </div>
               )
            ) : (
-             <>
+             // La lista en mobile. En desktop está oculta porque está en el panel izquierdo
+             <div className="lg:hidden flex flex-col flex-1 overflow-hidden">
                 <div className="flex justify-between items-center mb-4 shrink-0 px-1">
                    <h3 className="text-[15px] font-black text-slate-800 tracking-tight">{filteredStationsCarga.length} Estaciones en {cargaComuna}</h3>
                    {isUserNearCurrentComuna && (
@@ -1295,7 +1192,7 @@ export default function App() {
                 <div className="flex-1 overflow-y-auto no-scrollbar pb-8 px-1 space-y-3">
                    {filteredStationsCarga.map((station, idx) => renderStationCard(station, idx))}
                 </div>
-             </>
+             </div>
            )}
         </div>
       </div>
@@ -1330,7 +1227,7 @@ export default function App() {
           <>
             <iframe key={`viaje-map-${mapUrl}-${mobileStep}`} src={mapUrl} title="Mapa de la ruta" className="absolute inset-0 w-full h-full" style={{ border: 0 }} sandbox="allow-scripts allow-same-origin" />
             
-            <div className="lg:hidden absolute bottom-0 left-0 right-0 z-30 flex flex-col pointer-events-none">
+            <div className="absolute bottom-0 left-0 right-0 z-30 flex flex-col pointer-events-none">
                <div className="flex justify-center mb-4">
                   <div className="pointer-events-auto bg-white/95 backdrop-blur-md px-4 py-2.5 rounded-full shadow-lg flex items-center gap-3 border border-slate-100">
                      <span className="text-[11px] font-black text-slate-800 uppercase tracking-wider select-none">Ida y vuelta</span>
@@ -1339,39 +1236,10 @@ export default function App() {
                      </button>
                   </div>
                </div>
-               <div className="bg-white/95 backdrop-blur-xl rounded-t-[2.5rem] p-6 shadow-[0_-20px_40px_rgba(0,0,0,0.1)] pb-8 pointer-events-auto border-t border-slate-200">
-                  <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-5 shrink-0"></div>
+               <div className="bg-white/95 backdrop-blur-xl lg:rounded-b-[2rem] rounded-t-[2.5rem] lg:rounded-t-[2rem] p-6 shadow-[0_-20px_40px_rgba(0,0,0,0.1)] pb-8 lg:pb-6 pointer-events-auto border-t border-slate-200">
+                  <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-5 shrink-0 lg:hidden"></div>
                   {renderFooterContentViaje()}
                </div>
-            </div>
-
-            <div className="hidden lg:flex absolute bottom-6 left-1/2 -translate-x-1/2 bg-white/95 backdrop-blur-md px-4 py-2.5 rounded-full shadow-lg items-center gap-3 z-20 border border-slate-100">
-               <span className="text-[11px] font-black text-slate-800 uppercase tracking-wider select-none">Ida y vuelta</span>
-               <button onClick={() => setIsRoundTrip(!isRoundTrip)} className={`w-11 h-6 rounded-full relative transition-colors cursor-pointer shadow-inner border border-slate-200/50 ${isRoundTrip ? 'bg-blue-600' : 'bg-slate-200'}`}>
-                  <div className={`w-4 h-4 rounded-full bg-white absolute top-1 shadow-sm transition-transform ${isRoundTrip ? 'translate-x-6' : 'translate-x-1'}`} />
-               </button>
-            </div>
-            
-            <div className="hidden lg:flex absolute top-6 right-6 bg-white/95 backdrop-blur-md p-6 rounded-2xl shadow-xl border border-slate-100 z-20 flex-col w-[300px] animate-in slide-in-from-right-8 duration-300">
-               <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Distancia y Costo Total</span>
-               <span className="text-3xl font-black text-blue-600 leading-none mb-4">{formatCLP(resultValue)}</span>
-               <div className="flex flex-col gap-2 pb-4 border-b border-slate-100 mb-4">
-                  <div className="flex justify-between">
-                     <span className="text-[11px] font-bold text-slate-500 flex items-center"><MapPin className="w-3.5 h-3.5 mr-1" /> Distancia</span>
-                     <span className="text-[11px] font-black text-slate-800">{displayDistanceKm} km</span>
-                  </div>
-                  <div className="flex justify-between">
-                     <span className="text-[11px] font-bold text-slate-500 flex items-center"><Droplets className="w-3.5 h-3.5 mr-1" /> Combustible</span>
-                     <span className="text-[11px] font-black text-slate-800">{formatCLP(bencinaTotal)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                     <span className="text-[11px] font-bold text-slate-500 flex items-center"><Ticket className="w-3.5 h-3.5 mr-1" /> Peajes</span>
-                     <span className="text-[11px] font-black text-slate-800">{includeTolls ? formatCLP(peajeTotal) : '0'}</span>
-                  </div>
-               </div>
-               <button onClick={() => { if(detectedTolls.list.length > 0 && includeTolls) setShowTollsModal(true) }} disabled={detectedTolls.list.length === 0 || !includeTolls} className="w-full bg-slate-900 text-white rounded-xl py-3 font-extrabold text-sm flex items-center justify-center gap-2 shadow-xl shadow-slate-900/20 active:scale-[0.98] transition-all disabled:opacity-50 cursor-pointer">
-                 <Ticket className="w-4 h-4" /> {detectedTolls.list.length > 0 ? (includeTolls ? 'Ver desglose' : 'Peajes omitidos') : 'Sin peajes'}
-               </button>
             </div>
           </>
         )}
@@ -1385,7 +1253,7 @@ export default function App() {
           <div className="flex flex-col items-center md:items-start">
              <div className="flex items-center gap-2 mb-2 grayscale opacity-50">
                 <Fuel className="w-5 h-5 text-slate-600" />
-                <span className="font-black text-lg tracking-tighter text-slate-600">BencinaApp</span>
+                <span className="font-black text-lg tracking-tighter text-slate-600">Andes Ruta</span>
              </div>
              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center md:text-left">
                 © 2026 Datos públicos de la CNE. Desarrollado en Chile.
@@ -1396,7 +1264,7 @@ export default function App() {
              <button onClick={() => setLegalView('about')} className="text-xs font-black text-slate-500 hover:text-blue-600 uppercase tracking-wider transition-colors cursor-pointer">Acerca de</button>
              <button onClick={() => setLegalView('privacy')} className="text-xs font-black text-slate-500 hover:text-blue-600 uppercase tracking-wider transition-colors cursor-pointer">Privacidad</button>
              <button onClick={() => setLegalView('terms')} className="text-xs font-black text-slate-500 hover:text-blue-600 uppercase tracking-wider transition-colors cursor-pointer">Términos de uso</button>
-             <a href="mailto:contacto@bencinaapp.cl" className="text-xs font-black text-slate-500 hover:text-blue-600 uppercase tracking-wider transition-colors cursor-pointer">Contacto</a>
+             <a href="mailto:contacto@andesruta.com" className="text-xs font-black text-slate-500 hover:text-blue-600 uppercase tracking-wider transition-colors cursor-pointer">Contacto</a>
           </div>
        </div>
     </footer>
@@ -1420,7 +1288,7 @@ export default function App() {
            <div className="flex items-center gap-2 lg:gap-3">
               <div className="bg-blue-600 p-2 lg:p-2.5 rounded-xl shadow-md shadow-blue-200"><Fuel className="w-5 h-5 lg:w-6 lg:h-6 text-white" /></div>
               <div>
-                <h1 className="text-lg lg:text-xl font-black tracking-tight text-slate-900 leading-none">BencinaApp</h1>
+                <h1 className="text-lg lg:text-xl font-black tracking-tight text-slate-900 leading-none">Andes Ruta</h1>
                 <div className="flex items-center gap-1 mt-1">
                    <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></span>
                    <p className="text-[9px] lg:text-[10px] font-bold text-slate-400 uppercase tracking-widest">Precios Oficiales</p>
@@ -1552,7 +1420,7 @@ export default function App() {
                 <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 lg:hidden">
                    <h4 className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider mb-3 flex items-center"><FileText className="w-3.5 h-3.5 mr-1.5"/> Legal</h4>
                    <div className="flex flex-col gap-2">
-                     <button onClick={() => {setShowSettingsModal(false); setLegalView('about');}} className="text-sm font-bold text-slate-700 text-left hover:text-blue-600 transition-colors">Acerca de BencinaApp</button>
+                     <button onClick={() => {setShowSettingsModal(false); setLegalView('about');}} className="text-sm font-bold text-slate-700 text-left hover:text-blue-600 transition-colors">Acerca de Andes Ruta</button>
                      <button onClick={() => {setShowSettingsModal(false); setLegalView('privacy');}} className="text-sm font-bold text-slate-700 text-left hover:text-blue-600 transition-colors">Política de Privacidad</button>
                      <button onClick={() => {setShowSettingsModal(false); setLegalView('terms');}} className="text-sm font-bold text-slate-700 text-left hover:text-blue-600 transition-colors">Términos de Uso</button>
                    </div>
@@ -1562,7 +1430,7 @@ export default function App() {
                    <div className="flex items-start gap-3">
                       <div className="p-2 bg-blue-100 rounded-full text-blue-600 shrink-0"><Info className="w-4 h-4"/></div>
                       <div>
-                         <h4 className="text-xs font-black text-blue-900 mb-1">BencinaApp v1.1.0</h4>
+                         <h4 className="text-xs font-black text-blue-900 mb-1">Andes Ruta v1.1.0</h4>
                          <p className="text-[10px] font-medium text-blue-700 leading-tight">Precios obtenidos en tiempo real desde la CNE. Base de datos de tarifas de peajes actualizada al año 2026.</p>
                       </div>
                    </div>
@@ -1582,7 +1450,7 @@ export default function App() {
            <div className="bg-white w-full max-w-lg rounded-[2.5rem] shadow-2xl p-6 animate-in slide-in-from-bottom-8 duration-300 mb-4 sm:mb-0 max-h-[85vh] flex flex-col">
              <div className="flex justify-between items-center mb-6 shrink-0">
                 <h3 className="font-black text-slate-900 flex items-center text-xl">
-                   {legalView === 'about' && <><Info className="w-6 h-6 mr-2 text-blue-600"/> Acerca de BencinaApp</>}
+                   {legalView === 'about' && <><Info className="w-6 h-6 mr-2 text-blue-600"/> Acerca de Andes Ruta</>}
                    {legalView === 'privacy' && <><ShieldCheck className="w-6 h-6 mr-2 text-emerald-600"/> Política de Privacidad</>}
                    {legalView === 'terms' && <><FileText className="w-6 h-6 mr-2 text-purple-600"/> Términos de Uso</>}
                 </h3>
@@ -1592,23 +1460,23 @@ export default function App() {
              <div className="overflow-y-auto no-scrollbar pr-2 pb-4 text-sm text-slate-600 space-y-4">
                 {legalView === 'about' && (
                   <>
-                    <p><b>BencinaApp</b> es una plataforma independiente y gratuita diseñada para ayudar a los conductores en Chile a tomar decisiones informadas sobre el consumo de combustible.</p>
+                    <p><b>Andes Ruta</b> es una plataforma independiente y gratuita diseñada para ayudar a los conductores en Chile a tomar decisiones informadas sobre el consumo de combustible.</p>
                     <p>Nuestra tecnología se conecta directamente a los datos públicos proporcionados por la Comisión Nacional de Energía (CNE), garantizando que los precios mostrados son los oficiales reportados por las propias estaciones de servicio.</p>
                     <p>Además, integramos algoritmos de enrutamiento avanzados (OpenStreetMap/OSRM) y una base de datos propia de peajes para ofrecer proyecciones de costos de viaje lo más precisas posibles.</p>
                   </>
                 )}
                 {legalView === 'privacy' && (
                   <>
-                    <p><b>1. Uso de la Ubicación:</b> Para proporcionar resultados de "Estaciones cerca de mí", BencinaApp solicita acceso temporal a la ubicación GPS de su dispositivo. Esta información se procesa exclusivamente en su navegador local y <b>nunca es guardada, almacenada ni transmitida</b> a nuestros servidores.</p>
+                    <p><b>1. Uso de la Ubicación:</b> Para proporcionar resultados de "Estaciones cerca de mí", Andes Ruta solicita acceso temporal a la ubicación GPS de su dispositivo. Esta información se procesa exclusivamente en su navegador local y <b>nunca es guardada, almacenada ni transmitida</b> a nuestros servidores.</p>
                     <p><b>2. Datos de Almacenamiento:</b> La aplicación utiliza almacenamiento local (Local Storage) en su navegador para guardar preferencias como el rendimiento de su vehículo y las últimas comunas buscadas, mejorando su experiencia de uso. Estos datos no son rastreables remotamente.</p>
                     <p><b>3. Anuncios:</b> Utilizamos Google AdSense para mostrar publicidad relevante. Google y sus socios pueden utilizar cookies para mostrar anuncios basados en sus visitas anteriores a este y otros sitios web.</p>
                   </>
                 )}
                 {legalView === 'terms' && (
                   <>
-                    <p>Al utilizar BencinaApp, usted acepta los siguientes términos:</p>
-                    <p><b>1. Precisión de Precios:</b> Los precios son suministrados a través de la API de la CNE. BencinaApp no se hace responsable por diferencias temporales o errores de digitación cometidos por las bencineras al reportar sus tarifas.</p>
-                    <p><b>2. Cálculo de Peajes (Fase Beta):</b> Las estimaciones de peajes y rutas son puramente referenciales. Factores como horarios punta, tarifas de fin de semana, o desvíos en el trayecto pueden alterar el costo final. BencinaApp se provee "tal cual", sin garantías comerciales.</p>
+                    <p>Al utilizar Andes Ruta, usted acepta los siguientes términos:</p>
+                    <p><b>1. Precisión de Precios:</b> Los precios son suministrados a través de la API de la CNE. Andes Ruta no se hace responsable por diferencias temporales o errores de digitación cometidos por las bencineras al reportar sus tarifas.</p>
+                    <p><b>2. Cálculo de Peajes (Fase Beta):</b> Las estimaciones de peajes y rutas son puramente referenciales. Factores como horarios punta, tarifas de fin de semana, o desvíos en el trayecto pueden alterar el costo final. Andes Ruta se provee "tal cual", sin garantías comerciales.</p>
                     <p><b>3. Promociones:</b> Los descuentos exhibidos son recopilaciones informativas de carácter público. Las condiciones finales, topes y vigencias dependen exclusivamente de los bancos y entidades emisoras.</p>
                   </>
                 )}
