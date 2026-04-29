@@ -187,10 +187,10 @@ function getBestPrice(pObj) {
 // =========================
 function generateMapHtml(origin, dest, geometry, isRoundTrip, tolls = [], waypoints = []) {
   if (!origin || !dest) return "";
-  const tollsJs = tolls.map(t => `L.marker([${t.lat}, ${t.lon}], {icon: L.divIcon({className: '', iconSize: [0, 0], html: '<div style="background:#f59e0b;width:20px;height:20px;border:2px solid white;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 5px rgba(0,0,0,0.3);transform:translate(-50%, -50%);"><span style="color:white;font-size:11px;font-weight:900;">$</span></div>'})}).addTo(map).bindPopup("<b>${t.nombre}</b><br>$${t.precio}");`).join('\n');
-  const waypointsJs = waypoints.map(wp => `L.marker([${wp.lat}, ${wp.lon}], {icon: L.divIcon({className: '', iconSize: [0, 0], html: '<div style="background:#f59e0b;width:12px;height:12px;border:2px solid white;border-radius:50%;box-shadow:0 2px 5px rgba(0,0,0,0.3);transform:translate(-50%, -50%);"></div>'})}).addTo(map).bindPopup("<b>${wp.mainName}</b>");`).join('\n');
+  const tollsJs = tolls.map(t => `L.marker([${t.lat}, ${t.lon}], {icon: L.divIcon({className: 'custom-leaflet-icon', iconSize: [20, 20], html: '<div style="background:#f59e0b;width:20px;height:20px;border:2px solid white;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 5px rgba(0,0,0,0.3);"><span style="color:white;font-size:11px;font-weight:900;">$</span></div>'})}).addTo(map).bindPopup("<b>${t.nombre}</b><br>$${t.precio}");`).join('\n');
+  const waypointsJs = waypoints.map(wp => `L.marker([${wp.lat}, ${wp.lon}], {icon: L.divIcon({className: 'custom-leaflet-icon', iconSize: [12, 12], html: '<div style="background:#f59e0b;width:12px;height:12px;border:2px solid white;border-radius:50%;box-shadow:0 2px 5px rgba(0,0,0,0.3);"></div>'})}).addTo(map).bindPopup("<b>${wp.mainName}</b>");`).join('\n');
   
-  return `<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" /><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" /><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script><style>body{margin:0;padding:0;background:#e2e8f0;}#map{width:100vw;height:100vh;}.leaflet-control-attribution{display:none!important;} .custom-leaflet-icon { background: transparent; border: none; }</style></head><body><div id="map"></div><script>var map = L.map('map', { zoomControl: false }); L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png').addTo(map); var originCoord=[${origin.lat}, ${origin.lon}]; var destCoord=[${dest.lat}, ${dest.lon}]; L.marker(originCoord, {icon: L.divIcon({className:'', iconSize:[0, 0], html:'<div style="background:#3b82f6;width:16px;height:16px;border:3px solid white;border-radius:50%;box-shadow:0 2px 5px rgba(0,0,0,0.3);transform:translate(-50%, -50%);"></div>'})}).addTo(map); L.marker(destCoord, {icon: L.divIcon({className:'', iconSize:[0, 0], html:'<div style="background:#ef4444;width:16px;height:16px;border:3px solid white;border-radius:50%;box-shadow:0 2px 5px rgba(0,0,0,0.3);transform:translate(-50%, -50%);"></div>'})}).addTo(map); ${waypointsJs} var geom = ${geometry ? JSON.stringify(geometry) : 'null'}; 
+  return `<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" /><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" /><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script><style>body{margin:0;padding:0;background:#e2e8f0;}#map{width:100vw;height:100vh;}.leaflet-control-attribution{display:none!important;} .custom-leaflet-icon { background: transparent; border: none; }</style></head><body><div id="map"></div><script>var map = L.map('map', { zoomControl: false }); L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png').addTo(map); var originCoord=[${origin.lat}, ${origin.lon}]; var destCoord=[${dest.lat}, ${dest.lon}]; L.marker(originCoord, {icon: L.divIcon({className:'custom-leaflet-icon', iconSize:[16,16], html:'<div style="background:#3b82f6;width:16px;height:16px;border:3px solid white;border-radius:50%;box-shadow:0 2px 5px rgba(0,0,0,0.3)"></div>'})}).addTo(map); L.marker(destCoord, {icon: L.divIcon({className:'custom-leaflet-icon', iconSize:[16,16], html:'<div style="background:#ef4444;width:16px;height:16px;border:3px solid white;border-radius:50%;box-shadow:0 2px 5px rgba(0,0,0,0.3)"></div>'})}).addTo(map); ${waypointsJs} var geom = ${geometry ? JSON.stringify(geometry) : 'null'}; 
   setTimeout(function() {
       if(geom && geom.coordinates && geom.coordinates.length > 1){ 
          var coords = geom.coordinates.map(function(c){return [c[1], c[0]];}); 
@@ -233,28 +233,31 @@ function generateStationsMapHtml(stations, selectedStation, userLoc, showRouteLi
       return `var m_${s.id.replace(/\W/g,"")} = L.marker([${s.lat}, ${s.lon}], {icon: L.divIcon({className: '', html: \`${htmlStr}\`, iconSize: [0, 0]}), zIndexOffset:${isSelected?1000:1}}).addTo(map); m_${s.id.replace(/\W/g,"")}.on('click', function(){ window.parent.postMessage({type:'STATION_CLICKED', id:'${s.id}'}, '*'); });`;
   }).join("\n");
   
-  let userMarkerJs = userLoc ? `L.marker([${userLoc.lat}, ${userLoc.lon}], {icon: L.divIcon({className: '', html: '<div style="background:#2563eb;width:16px;height:16px;border:3px solid white;border-radius:50%;box-shadow:0 0 0 4px rgba(37,99,235,0.4);transform:translate(-50%, -50%);"></div>', iconSize:[0, 0]}), zIndexOffset: 2000}).addTo(map).bindPopup("<b>Tu ubicación</b>");` : "";
+  let userMarkerJs = userLoc ? `L.marker([${userLoc.lat}, ${userLoc.lon}], {icon: L.divIcon({className: 'custom-leaflet-icon', html: '<div style="background:#2563eb;width:100%;height:100%;border:3px solid white;border-radius:50%;box-shadow:0 0 0 4px rgba(37,99,235,0.4)"></div>', iconSize:[16,16]}), zIndexOffset: 2000}).addTo(map).bindPopup("<b>Tu ubicación</b>");` : "";
   
   let mapViewJs = "";
   if (showRouteLine && selectedStation && userLoc) {
      mapViewJs = `
        var r = L.polyline([[${userLoc.lat}, ${userLoc.lon}], [${selectedStation.lat}, ${selectedStation.lon}]], {color:'#3b82f6', weight:3, dashArray:'6,8'}).addTo(map); 
-       map.fitBounds(r.getBounds(), {paddingTopLeft: [50, 50], paddingBottomRight: [50, window.innerHeight * 0.5 + 50]});
+       var paddingBottom = window.innerWidth >= 1024 ? window.innerHeight * 0.45 : window.innerHeight * 0.60;
+       map.fitBounds(r.getBounds(), {paddingTopLeft: [50, 50], paddingBottomRight: [50, paddingBottom + 50]});
      `;
   } else if (selectedStation) {
      mapViewJs = `
        var target = L.latLng(${selectedStation.lat}, ${selectedStation.lon});
        var zoom = 14;
        var targetPoint = map.project(target, zoom);
-       targetPoint.y += (window.innerHeight * 0.25); // Desplaza visualmente el mapa para compensar el bottom sheet del 50%
+       var paddingBottom = window.innerWidth >= 1024 ? window.innerHeight * 0.45 : window.innerHeight * 0.60; 
+       targetPoint.y += (paddingBottom / 2); 
        map.setView(map.unproject(targetPoint, zoom), zoom);
      `;
   } else {
      mapViewJs = `
        setTimeout(function() {
           var b = L.latLngBounds([${stations.map(s=>`[${s.lat},${s.lon}]`).join(",")}]);
+          var paddingBottom = window.innerWidth >= 1024 ? window.innerHeight * 0.45 : window.innerHeight * 0.60;
           if(b.isValid()) {
-              map.fitBounds(b, {paddingTopLeft: [50, 50], paddingBottomRight: [50, 50]});
+              map.fitBounds(b, {paddingTopLeft: [50, 50], paddingBottomRight: [50, paddingBottom]});
           }
        }, 100);
      `;
@@ -421,7 +424,8 @@ export default function App() {
   const [detectedTolls, setDetectedTolls] = useState({ total: 0, list: [] });
   const [showTollsModal, setShowTollsModal] = useState(false);
 
-  // Evitar doble scroll en vista de mapa en móviles
+  // Evitar doble scroll en vista de mapa en móviles mediante fixed layout del contenedor padre,
+  // y también bloquear el body overflow en caso de emergencias por barras de navegación safari.
   useEffect(() => {
     if (window.innerWidth < 1024) {
       if (mobileStep === 2) {
@@ -468,7 +472,7 @@ export default function App() {
     }
   }, []);
 
-  // URL Sync (Corregido para mapear ciudades por coordenadas reales)
+  // URL Sync
   useEffect(() => {
     if (cneStations.length > 0 && !urlParsed) {
       const params = new URLSearchParams(window.location.search);
@@ -1052,9 +1056,10 @@ export default function App() {
            {stationsMapUrl ? <iframe key={`map-${stationsMapUrl}-${mobileStep}`} src={stationsMapUrl} title="Mapa Estaciones" className="w-full h-full" style={{ border: 0 }} sandbox="allow-scripts allow-same-origin" /> : <div className="w-full h-full flex items-center justify-center text-slate-400"><Loader2 className="w-8 h-8 animate-spin" /></div>}
         </div>
         
-        {/* PANEL DETALLE ESTACION (BOTTOM SHEET MÓVIL Y ESCRITORIO - 50/50) */}
+        {/* PANEL DETALLE ESTACION (BOTTOM SHEET MÓVIL Y ESCRITORIO - 60/40) */}
         {currentStation && !showCalcModal && (
-           <div className="absolute bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xl lg:rounded-b-[1rem] rounded-t-[2.5rem] lg:rounded-t-[2rem] p-5 sm:p-6 shadow-[0_-15px_40px_rgba(0,0,0,0.12)] border-t border-slate-200 z-30 flex flex-col h-[50%] transition-all duration-300">
+           <div className="absolute bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xl lg:rounded-b-[1rem] rounded-t-[2.5rem] lg:rounded-t-[2rem] p-5 sm:p-6 shadow-[0_-15px_40px_rgba(0,0,0,0.12)] border-t border-slate-200 z-30 flex flex-col h-[60%] lg:h-[45%] transition-all duration-300">
+              {/* Pestañita Drag Handle solo visible en mobile */}
               <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-3 shrink-0 lg:hidden"></div>
 
               <div className="flex flex-col flex-1 overflow-hidden lg:max-w-3xl lg:mx-auto w-full">
@@ -1116,6 +1121,7 @@ export default function App() {
                        })}
                     </div>
                  </div>
+
                  <div className="flex gap-2 pt-3 border-t border-slate-100 mt-1 shrink-0 pb-6 lg:pb-0">
                     <button onClick={() => { setCalcFuelType(fuelType); setShowCalcModal(true); }} className="flex-1 bg-slate-900 text-white rounded-xl py-3.5 text-[13px] font-extrabold flex items-center justify-center gap-1.5 shadow-xl shadow-slate-900/20 active:scale-95 transition-transform"><Calculator className="w-4 h-4" /> Calcular</button>
                     <a href={`https://www.google.com/maps/dir/?api=1&destination=${currentStation.lat},${currentStation.lon}`} target="_blank" rel="noopener noreferrer" className="flex-1 bg-blue-600 text-white rounded-xl py-3.5 text-[13px] font-extrabold flex items-center justify-center gap-1.5 shadow-xl shadow-blue-600/20 active:scale-95 transition-transform"><MapPin className="w-3.5 h-3.5" /> Llegar</a>
@@ -1125,7 +1131,7 @@ export default function App() {
         )}
 
         {currentStation && showCalcModal && (
-           <div className="absolute bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xl lg:rounded-b-[1rem] rounded-t-[2.5rem] lg:rounded-t-[2rem] p-5 sm:p-6 shadow-[0_-15px_40px_rgba(0,0,0,0.12)] border-t border-slate-200 z-30 flex flex-col h-[50%] transition-all duration-300">
+           <div className="absolute bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xl lg:rounded-b-[1rem] rounded-t-[2.5rem] lg:rounded-t-[2rem] p-5 sm:p-6 shadow-[0_-15px_40px_rgba(0,0,0,0.12)] border-t border-slate-200 z-30 flex flex-col h-[60%] lg:h-[45%] transition-all duration-300">
               <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-3 shrink-0 lg:hidden"></div>
               
               <div className="flex flex-col flex-1 overflow-hidden lg:max-w-2xl lg:mx-auto w-full">
@@ -1245,7 +1251,7 @@ export default function App() {
     <div className="bg-slate-50 min-h-screen flex flex-col font-sans text-slate-800">
       
       {/* HEADER WEB */}
-      <header className="flex bg-white border-b border-slate-200 sticky top-0 z-[100] px-4 lg:px-8 py-3 shadow-sm items-center justify-between w-full">
+      <header className="h-[70px] shrink-0 flex bg-white border-b border-slate-200 sticky top-0 z-[100] px-4 lg:px-8 shadow-sm items-center justify-between w-full">
          <div className="max-w-7xl mx-auto flex items-center justify-between w-full">
            <div className="flex items-center gap-2 lg:gap-3">
               <div className="bg-blue-600 p-2 lg:p-2.5 rounded-xl shadow-md shadow-blue-200"><Fuel className="w-5 h-5 lg:w-6 lg:h-6 text-white" /></div>
@@ -1294,8 +1300,8 @@ export default function App() {
         </div>
           
         {/* PANEL DERECHO (MAPA Y RESULTADOS STICKY) */}
-        <div className={`flex-1 w-full relative ${mobileStep === 1 ? 'hidden lg:block' : 'block'}`}>
-           <div className="lg:sticky lg:top-[90px] w-full h-[calc(100vh-70px)] lg:h-[calc(100vh-130px)] z-10 flex flex-col">
+        <div className={`flex-1 w-full ${mobileStep === 1 ? 'hidden lg:block' : 'block'}`}>
+           <div className={`w-full z-10 flex flex-col lg:sticky lg:top-[90px] lg:h-[calc(100vh-130px)] ${mobileStep === 2 ? 'fixed top-[70px] bottom-0 left-0 right-0 lg:relative lg:top-auto lg:bottom-auto lg:left-auto lg:right-auto' : 'relative h-[calc(100vh-70px)]'}`}>
               {calcMode === 'carga' ? renderCargaRightPanel() : renderViajeRightPanel()}
            </div>
         </div>
