@@ -223,7 +223,7 @@ function generateStationsMapHtml(stations, selectedStation, userLoc, showRouteLi
       
       let htmlStr = '';
       if (isSelected) {
-          const logoStr = s.logo ? `<img src="${s.logo}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;background:white;"/>` : `<span style="font-size:12px;font-weight:900;color:#334155;">${s.distribuidor.substring(0,1)}</span>`;
+          const logoStr = s.logo ? `<img src="${s.logo}" style="width:100%;height:100%;object-fit:contain;padding:4px;border-radius:50%;background:white;box-sizing:border-box;"/>` : `<span style="font-size:12px;font-weight:900;color:#334155;">${s.distribuidor.substring(0,1)}</span>`;
           htmlStr = `<div style="display:flex;flex-direction:column;align-items:center;transform:translate(-50%, -100%);"><div style="background:${color};width:36px;height:36px;border:3px solid white;border-radius:50%;display:flex;align-items:center;justify-content:center;overflow:hidden;box-shadow:0 4px 10px rgba(0,0,0,0.3);animation: pulse 1.5s infinite;">${logoStr}</div><div style="background:#2563eb;color:white;font-size:12px;font-weight:900;padding:2px 8px;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,0.2);margin-top:4px;white-space:nowrap;width:max-content;">$${price}</div></div>`;
       } else {
           // Si NO está seleccionado, se centra en su propio punto sin romper el width
@@ -323,9 +323,9 @@ const RouteCityAutocomplete = ({ placeholder, value, onSelect, comunasData, hide
       {isOpen && (localResults.length > 0 || externalResults.length > 0) && (
         <div className="absolute z-50 w-full mt-2 bg-white border border-slate-100 rounded-2xl shadow-2xl max-h-64 overflow-y-auto">
           {localResults.length > 0 && <div className="px-4 py-2 bg-slate-50 text-[10px] font-black text-slate-400 uppercase sticky top-0">Comunas</div>}
-          {localResults.map((r, i) => (<div key={`loc-${i}`} onMouseDown={(e) => { e.preventDefault(); handleSelectItem(r); }} className="p-3 px-4 cursor-pointer hover:bg-slate-50 border-b border-slate-50"><span className="text-sm font-bold text-slate-800">{r.mainName}</span></div>))}
+          {localResults.map((r, i) => (<div key={`loc-${i}`} onMouseDown={(e) => { e.preventDefault(); handleSelectItem(r); }} className="p-3 px-4 cursor-pointer hover:bg-slate-50 border-b border-slate-50 flex items-baseline justify-between"><span className="text-sm font-bold text-slate-800">{r.mainName}</span> <span className="text-[10px] text-slate-400 font-medium">{r.regionName}</span></div>))}
           {externalResults.length > 0 && <div className="px-4 py-2 bg-slate-50 text-[10px] font-black text-slate-400 uppercase sticky top-0 border-t">Lugares</div>}
-          {externalResults.map((r, i) => (<div key={`ext-${i}`} onMouseDown={(e) => { e.preventDefault(); handleSelectItem(r); }} className="p-3 px-4 cursor-pointer hover:bg-slate-50 border-b border-slate-50"><span className="text-[13px] font-bold text-slate-800">{r.mainName}</span></div>))}
+          {externalResults.map((r, i) => (<div key={`ext-${i}`} onMouseDown={(e) => { e.preventDefault(); handleSelectItem(r); }} className="p-3 px-4 cursor-pointer hover:bg-slate-50 border-b border-slate-50 flex items-baseline justify-between"><span className="text-[13px] font-bold text-slate-800">{r.mainName}</span> <span className="text-[10px] text-slate-400 font-medium">{r.regionName}</span></div>))}
         </div>
       )}
     </div>
@@ -362,7 +362,7 @@ const ComunaAutocomplete = ({ placeholder, value, onSelect, comunas }) => {
       {value === query && value !== "" ? <button type="button" onMouseDown={(e) => { e.preventDefault(); setQuery(""); onSelect(""); setIsOpen(true); }} className="absolute right-4 top-4 text-blue-500"><X className="w-5 h-5" /></button> : <Search className="absolute right-4 top-4 w-5 h-5 text-slate-300" />}
       {isOpen && results.length > 0 && (
         <ul className="absolute z-[100] w-full mt-2 bg-white border border-slate-100 rounded-2xl shadow-2xl max-h-64 overflow-y-auto">
-          {results.map((c) => (<li key={c.comuna} onMouseDown={(e) => { e.preventDefault(); onSelect(c.comuna); setIsOpen(false); }} className="p-3 px-4 cursor-pointer hover:bg-slate-50 border-b border-slate-50 text-sm font-bold text-slate-800">{c.comuna}</li>))}
+          {results.map((c) => (<li key={c.comuna} onMouseDown={(e) => { e.preventDefault(); onSelect(c.comuna); setIsOpen(false); }} className="p-3 px-4 cursor-pointer hover:bg-slate-50 border-b border-slate-50 flex items-baseline justify-between"><span className="text-sm font-bold text-slate-800">{c.comuna}</span> <span className="text-[10px] text-slate-400 font-medium">{c.regionName}</span></li>))}
         </ul>
       )}
     </div>
@@ -388,7 +388,6 @@ export default function App() {
   const [tempTolls, setTempTolls] = useState(includeTolls);
   
   const [showStationModal, setShowStationModal] = useState(false);
-  const [serviceMode, setServiceMode] = useState("asistido");
   const [legalView, setLegalView] = useState(null);
   
   const [showCalcModal, setShowCalcModal] = useState(false);
@@ -533,15 +532,6 @@ export default function App() {
   const handleSeoLinkClick = (e, comuna) => { e.preventDefault(); setCalcMode('carga'); setCargaComuna(comuna.toUpperCase()); setMobileStep(1); };
 
   useEffect(() => { setCurrentStation(null); setShowStationModal(false); if (cargaListRef.current) cargaListRef.current.scrollTop = 0; }, [cargaComuna, fuelType, sortBy]);
-
-  useEffect(() => {
-    if (currentStation) {
-      const p = currentStation.precios[fuelType];
-      if (p && p.autoservicio > 0 && p.asistido > 0) setServiceMode(p.autoservicio < p.asistido ? "autoservicio" : "asistido");
-      else if (p && p.autoservicio > 0) setServiceMode("autoservicio");
-      else setServiceMode("asistido");
-    }
-  }, [currentStation, fuelType]);
 
   const handleSelectComuna = (c) => {
     setCargaComuna(c); setSortBy('price'); 
@@ -791,7 +781,6 @@ export default function App() {
 
   let pricePerLiter = 0;
   if (calcMode === "viaje" && originCity && destCity) {
-    // Buscar estaciones válidas solo en el origen
     const regionStations = cneStations.filter((s) => s.regionId === originCity.regionId && getBestPrice(s.precios[fuelType]) > 0);
     if (regionStations.length > 0) pricePerLiter = Math.round(regionStations.reduce((acc, s) => acc + getBestPrice(s.precios[fuelType]), 0) / regionStations.length);
   }
@@ -1013,6 +1002,12 @@ export default function App() {
         <div className="flex flex-col">
           <span className="text-[13px] font-bold text-slate-500 uppercase tracking-wider mb-1">Costo Total Viaje</span>
           <span className="text-[2.5rem] font-black text-slate-900 tracking-tight leading-none">{formatCLP(resultValue)}</span>
+          {parseFloat(distanceKm) > 0 && (
+             <div className="flex items-center gap-1 mt-2 text-blue-600 bg-blue-50 w-fit px-2.5 py-1.5 rounded-lg border border-blue-100">
+                 <Route className="w-3.5 h-3.5" />
+                 <span className="text-[11px] font-bold">{displayDistanceKm} km total {isRoundTrip ? '(Ida y vuelta)' : ''}</span>
+             </div>
+          )}
         </div>
         {resultValue > 0 && (
           <div className="flex flex-col items-end gap-1.5 pb-1">
@@ -1039,7 +1034,7 @@ export default function App() {
     }
 
     return (
-      <div className="w-full h-full flex flex-col relative bg-slate-200 lg:rounded-[2rem] lg:shadow-xl lg:border-[6px] lg:border-white lg:overflow-hidden">
+      <div className="w-full h-full flex flex-col lg:flex-row relative bg-slate-200 lg:rounded-[2rem] lg:shadow-xl lg:border-[6px] lg:border-white lg:overflow-hidden">
         
         {/* Botón volver Mobile (Aparece en modo mapa) */}
         <div className="lg:hidden absolute top-4 left-4 z-20">
@@ -1056,7 +1051,7 @@ export default function App() {
            {stationsMapUrl ? <iframe key={`map-${stationsMapUrl}-${mobileStep}`} src={stationsMapUrl} title="Mapa Estaciones" className="w-full h-full" style={{ border: 0 }} sandbox="allow-scripts allow-same-origin" /> : <div className="w-full h-full flex items-center justify-center text-slate-400"><Loader2 className="w-8 h-8 animate-spin" /></div>}
         </div>
         
-        {/* PANEL DETALLE ESTACION (BOTTOM SHEET MÓVIL Y ESCRITORIO - 60/40) */}
+        {/* PANEL DETALLE ESTACION (BOTTOM SHEET MÓVIL Y ESCRITORIO - 50/50) */}
         {currentStation && !showCalcModal && (
            <div className="absolute bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xl p-5 sm:p-6 shadow-[0_-15px_40px_rgba(0,0,0,0.12)] border-t border-slate-200 z-30 flex flex-col transition-all duration-300">
 
@@ -1077,42 +1072,50 @@ export default function App() {
                  </div>
                  
                  <div className="flex-1 overflow-y-auto no-scrollbar pb-2 px-1">
-                    {(() => {
-                       const pBase = currentStation.precios[fuelType];
-                       const hasAuto = ["93", "95", "97", "diesel", "parafina"].some(t => currentStation.precios[t]?.autoservicio > 0);
-                       const hasAsis = ["93", "95", "97", "diesel", "parafina"].some(t => currentStation.precios[t]?.asistido > 0);
-                       if (hasAuto && hasAsis) {
-                         const diffBase = (pBase?.autoservicio > 0 && pBase?.asistido > 0 && pBase.autoservicio < pBase.asistido) ? (pBase.asistido - pBase.autoservicio) : 0;
-                         return (
-                           <div className="mb-4 mt-2">
-                             <div className="flex bg-slate-200/60 p-1 rounded-xl">
-                               <button onClick={()=>setServiceMode("asistido")} className={`flex-1 text-[11px] font-bold py-2.5 rounded-lg transition-all ${serviceMode === 'asistido' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500'}`}>Asistido</button>
-                               <button onClick={()=>setServiceMode("autoservicio")} className={`flex-1 text-[11px] font-bold py-2.5 rounded-lg transition-all ${serviceMode === 'autoservicio' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500'}`}>
-                                 Auto {diffBase > 0 ? <span className="text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-md ml-1 text-[10px]">-$ {diffBase}</span> : ''}
-                               </button>
-                             </div>
-                             <div className="mt-3 text-[10px] text-slate-500 flex items-start gap-1.5 leading-tight px-2">
-                                 <Info className="w-4 h-4 shrink-0 text-blue-500" />
-                                 <span>
-                                   {diffBase > 0 ? <span className="text-blue-600 font-bold block mt-1">Esta estación ofrece un descuento de ${diffBase} por litro en modalidad autoservicio.</span> : ''}
-                                 </span>
-                             </div>
-                           </div>
-                         )
-                       }
-                       return null;
-                    })()}
+                    
+                    {/* Alerta de precios diferenciados */}
+                    {["93", "95", "97", "diesel", "parafina"].some(t => {
+                       const pBase = currentStation.precios[t];
+                       return pBase && pBase.autoservicio > 0 && pBase.asistido > 0 && pBase.autoservicio < pBase.asistido;
+                    }) && (
+                      <div className="mb-4 mt-2 bg-blue-50 p-3 rounded-xl border border-blue-100 flex items-start gap-2.5 shadow-sm">
+                          <Info className="w-5 h-5 shrink-0 text-blue-500 mt-0.5" />
+                          <span className="text-[11px] text-slate-700 leading-snug">
+                            Esta estación tiene precios diferenciados. <b>Auto:</b> Autoservicio (tú cargas, más barato). <b>Asis:</b> Asistido.
+                          </span>
+                      </div>
+                    )}
 
                     <div className="grid grid-cols-2 lg:grid-cols-3 gap-2 mb-4 mt-2">
                        {["93", "95", "97", "diesel", "parafina"].map((t) => {
                           const p = currentStation.precios[t];
-                          const priceToShow = p?.[serviceMode];
-                          if (!priceToShow || priceToShow === 0) return null;
+                          if (!p || (p.asistido === 0 && p.autoservicio === 0)) return null;
                           const isThisFuelSelected = t === fuelType;
+                          
+                          const hasAuto = p.autoservicio > 0;
+                          const hasAsis = p.asistido > 0;
+                          const isAutoCheaper = hasAuto && hasAsis && p.autoservicio < p.asistido;
+                          
                           return (
-                            <div key={t} className={`rounded-xl p-2.5 flex justify-between items-center border ${isThisFuelSelected ? 'bg-blue-50 border-blue-200' : 'bg-white border-slate-200'}`}>
-                              <span className={`text-[10px] font-bold uppercase ${isThisFuelSelected ? 'text-blue-700' : 'text-slate-500'}`}>{t === "diesel" ? "Diesel" : t === "parafina" ? "Parafina" : `${t} Oct`}</span>
-                              <span className={`text-[13px] font-black ${isThisFuelSelected ? 'text-blue-700' : 'text-slate-900'}`}>{formatCLP(priceToShow)}</span>
+                            <div key={t} className={`rounded-xl p-2.5 flex justify-between items-center border ${isThisFuelSelected ? 'bg-blue-50 border-blue-300 ring-1 ring-blue-300' : 'bg-white border-slate-200'}`}>
+                              <span className={`text-[10px] font-bold uppercase ${isThisFuelSelected ? 'text-blue-800' : 'text-slate-600'}`}>{t === "diesel" ? "Diesel" : t === "parafina" ? "Parafina" : `${t} Oct`}</span>
+                              
+                              <div className="flex flex-col items-end text-right">
+                                 {isAutoCheaper ? (
+                                    <>
+                                       <span className={`text-[14px] font-black ${isThisFuelSelected ? 'text-blue-700' : 'text-slate-900'} leading-none`}>
+                                          {formatCLP(p.autoservicio)} <span className="text-[9px] font-bold text-blue-500 uppercase ml-0.5">Auto</span>
+                                       </span>
+                                       <span className="text-[10px] font-semibold text-slate-400 mt-1">
+                                          {formatCLP(p.asistido)} <span className="text-[8px] uppercase">Asis</span>
+                                       </span>
+                                    </>
+                                 ) : (
+                                    <span className={`text-[14px] font-black ${isThisFuelSelected ? 'text-blue-700' : 'text-slate-900'}`}>
+                                       {formatCLP(hasAsis ? p.asistido : p.autoservicio)}
+                                    </span>
+                                 )}
+                              </div>
                             </div>
                           );
                        })}
@@ -1128,7 +1131,7 @@ export default function App() {
         )}
 
         {currentStation && showCalcModal && (
-           <div className="absolute bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xl lg:rounded-b-[1rem] rounded-t-[2.5rem] lg:rounded-t-[2rem] p-5 sm:p-6 shadow-[0_-15px_40px_rgba(0,0,0,0.12)] border-t border-slate-200 z-30 flex flex-col h-[60%] lg:h-[45%] transition-all duration-300">
+           <div className="absolute bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xl lg:rounded-b-[1rem] rounded-t-[2.5rem] lg:rounded-t-[2rem] p-5 sm:p-6 shadow-[0_-15px_40px_rgba(0,0,0,0.12)] border-t border-slate-200 z-30 flex flex-col transition-all duration-300">
               <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-3 shrink-0 lg:hidden"></div>
               
               <div className="flex flex-col flex-1 overflow-hidden lg:max-w-2xl lg:mx-auto w-full">
@@ -1148,7 +1151,7 @@ export default function App() {
                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">{calcUnit === "money" ? "Recibirás aprox." : "Costo estimado"}</span>
                        <span className="text-2xl font-black text-slate-900">
                          {(() => {
-                            const p = currentStation.precios[calcFuelType]?.[serviceMode];
+                            const p = getBestPrice(currentStation.precios[calcFuelType]);
                             const v = parseFloat(calcVal) || 0;
                             if (!p || p === 0) return "---";
                             return calcUnit === "money" ? `${(v / p).toFixed(1)} Lts` : formatCLP(v * p);
@@ -1363,7 +1366,7 @@ export default function App() {
                       <div className="flex justify-between items-center">
                          <span className="text-sm font-bold text-slate-700">Combustible</span>
                          <select className="bg-white px-3 py-2 rounded-xl border border-slate-200 font-black text-slate-900 outline-none cursor-pointer shadow-sm" value={tempFuel} onChange={(e) => setTempFuel(e.target.value)}>
-                            <option value="93">93 oct</option><option value="95">95 oct</option><option value="97">97 oct</option><option value="diesel">Diesel</option><option value="parafina">Parafina</option>
+                            <option value="93">93 oct</option><option value="95">95 oct</option><option value="97">97 oct</option><option value="diesel">Diesel</option>
                          </select>
                       </div>
                    </div>
@@ -1379,16 +1382,6 @@ export default function App() {
                          </div>
                        </div>
                     </div>
-                </div>
-
-                {/* ENLACES LEGALES EN MOBILE SETTINGS */}
-                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 lg:hidden">
-                   <h4 className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider mb-3 flex items-center"><FileText className="w-3.5 h-3.5 mr-1.5"/> Legal</h4>
-                   <div className="flex flex-col gap-2">
-                     <button onClick={() => {setShowSettingsModal(false); setLegalView('about');}} className="text-sm font-bold text-slate-700 text-left hover:text-blue-600 transition-colors">Acerca de Andes Ruta</button>
-                     <button onClick={() => {setShowSettingsModal(false); setLegalView('privacy');}} className="text-sm font-bold text-slate-700 text-left hover:text-blue-600 transition-colors">Política de Privacidad</button>
-                     <button onClick={() => {setShowSettingsModal(false); setLegalView('terms');}} className="text-sm font-bold text-slate-700 text-left hover:text-blue-600 transition-colors">Términos de Uso</button>
-                   </div>
                 </div>
 
                 <div className="bg-blue-50 p-4 rounded-2xl border border-blue-100">
