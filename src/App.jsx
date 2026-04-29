@@ -124,12 +124,6 @@ const PEAJES_DB = [
   { id: "t_nororiente", nombre: "TAG Nororiente", lat: -33.320, lon: -70.600, precio: 3000, tipo: "tag" }
 ];
 
-const DESCUENTOS_POR_MARCA = {
-  "copec": [{ dia: "Lunes", desc: "$50 a $100/L dcto Cencosud" }, { dia: "Jueves", desc: "$100/L dcto BCI/Coopeuch" }, { dia: "Viernes", desc: "Hasta $300/L dcto Tenpo" }, { dia: "Todos los días", desc: "$50/L dcto primera carga App Copec" }],
-  "shell": [{ dia: "Martes", desc: "$100/L dcto Lider Bci" }, { dia: "Viernes", desc: "Hasta $300/L dcto Tenpo" }, { dia: "Domingo", desc: "$100/L dcto BICE" }],
-  "aramco": [{ dia: "Lunes", desc: "$150/L dcto Consorcio" }, { dia: "Miércoles", desc: "$150/L dcto Ripley" }, { dia: "Viernes", desc: "Hasta $300/L dcto Tenpo" }]
-};
-
 function extractRegionId(displayName) {
   const lower = (displayName || "").toLowerCase();
   for (const [key, id] of Object.entries(REGION_MAP)) {
@@ -193,11 +187,10 @@ function getBestPrice(pObj) {
 // =========================
 function generateMapHtml(origin, dest, geometry, isRoundTrip, tolls = [], waypoints = []) {
   if (!origin || !dest) return "";
-  const tollsJs = tolls.map(t => `L.marker([${t.lat}, ${t.lon}], {icon: L.divIcon({className: 'custom-leaflet-icon', iconSize: [20, 20], html: '<div style="background:#f59e0b;width:20px;height:20px;border:2px solid white;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 5px rgba(0,0,0,0.3);"><span style="color:white;font-size:11px;font-weight:900;">$</span></div>'})}).addTo(map).bindPopup("<b>${t.nombre}</b><br>$${t.precio}");`).join('\n');
-  const waypointsJs = waypoints.map(wp => `L.marker([${wp.lat}, ${wp.lon}], {icon: L.divIcon({className: 'custom-leaflet-icon', iconSize: [12, 12], html: '<div style="background:#f59e0b;width:12px;height:12px;border:2px solid white;border-radius:50%;box-shadow:0 2px 5px rgba(0,0,0,0.3);"></div>'})}).addTo(map).bindPopup("<b>${wp.mainName}</b>");`).join('\n');
+  const tollsJs = tolls.map(t => `L.marker([${t.lat}, ${t.lon}], {icon: L.divIcon({className: '', iconSize: [0, 0], html: '<div style="background:#f59e0b;width:20px;height:20px;border:2px solid white;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 5px rgba(0,0,0,0.3);transform:translate(-50%, -50%);"><span style="color:white;font-size:11px;font-weight:900;">$</span></div>'})}).addTo(map).bindPopup("<b>${t.nombre}</b><br>$${t.precio}");`).join('\n');
+  const waypointsJs = waypoints.map(wp => `L.marker([${wp.lat}, ${wp.lon}], {icon: L.divIcon({className: '', iconSize: [0, 0], html: '<div style="background:#f59e0b;width:12px;height:12px;border:2px solid white;border-radius:50%;box-shadow:0 2px 5px rgba(0,0,0,0.3);transform:translate(-50%, -50%);"></div>'})}).addTo(map).bindPopup("<b>${wp.mainName}</b>");`).join('\n');
   
-  // Padding adaptativo para esquivar el panel inferior de la ruta
-  return `<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" /><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" /><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script><style>body{margin:0;padding:0;background:#e2e8f0;}#map{width:100vw;height:100vh;}.leaflet-control-attribution{display:none!important;} .custom-leaflet-icon { background: transparent; border: none; }</style></head><body><div id="map"></div><script>var map = L.map('map', { zoomControl: false }); L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png').addTo(map); var originCoord=[${origin.lat}, ${origin.lon}]; var destCoord=[${dest.lat}, ${dest.lon}]; L.marker(originCoord, {icon: L.divIcon({className:'custom-leaflet-icon', iconSize:[16,16], html:'<div style="background:#3b82f6;width:16px;height:16px;border:3px solid white;border-radius:50%;box-shadow:0 2px 5px rgba(0,0,0,0.3)"></div>'})}).addTo(map); L.marker(destCoord, {icon: L.divIcon({className:'custom-leaflet-icon', iconSize:[16,16], html:'<div style="background:#ef4444;width:16px;height:16px;border:3px solid white;border-radius:50%;box-shadow:0 2px 5px rgba(0,0,0,0.3)"></div>'})}).addTo(map); ${waypointsJs} var geom = ${geometry ? JSON.stringify(geometry) : 'null'}; 
+  return `<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" /><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" /><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script><style>body{margin:0;padding:0;background:#e2e8f0;}#map{width:100vw;height:100vh;}.leaflet-control-attribution{display:none!important;} .custom-leaflet-icon { background: transparent; border: none; }</style></head><body><div id="map"></div><script>var map = L.map('map', { zoomControl: false }); L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png').addTo(map); var originCoord=[${origin.lat}, ${origin.lon}]; var destCoord=[${dest.lat}, ${dest.lon}]; L.marker(originCoord, {icon: L.divIcon({className:'', iconSize:[0, 0], html:'<div style="background:#3b82f6;width:16px;height:16px;border:3px solid white;border-radius:50%;box-shadow:0 2px 5px rgba(0,0,0,0.3);transform:translate(-50%, -50%);"></div>'})}).addTo(map); L.marker(destCoord, {icon: L.divIcon({className:'', iconSize:[0, 0], html:'<div style="background:#ef4444;width:16px;height:16px;border:3px solid white;border-radius:50%;box-shadow:0 2px 5px rgba(0,0,0,0.3);transform:translate(-50%, -50%);"></div>'})}).addTo(map); ${waypointsJs} var geom = ${geometry ? JSON.stringify(geometry) : 'null'}; 
   setTimeout(function() {
       if(geom && geom.coordinates && geom.coordinates.length > 1){ 
          var coords = geom.coordinates.map(function(c){return [c[1], c[0]];}); 
@@ -231,38 +224,37 @@ function generateStationsMapHtml(stations, selectedStation, userLoc, showRouteLi
       let htmlStr = '';
       if (isSelected) {
           const logoStr = s.logo ? `<img src="${s.logo}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;background:white;"/>` : `<span style="font-size:12px;font-weight:900;color:#334155;">${s.distribuidor.substring(0,1)}</span>`;
-          htmlStr = `<div style="display:flex;flex-direction:column;align-items:center;margin-top:-20px;"><div style="background:${color};width:32px;height:32px;border:2px solid white;border-radius:50%;display:flex;align-items:center;justify-content:center;overflow:hidden;box-shadow:0 4px 10px rgba(0,0,0,0.3);animation: pulse 1.5s infinite;">${logoStr}</div><div style="background:#2563eb;color:white;font-size:11px;font-weight:900;padding:2px 8px;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,0.2);margin-top:4px;">$${price}</div></div>`;
+          htmlStr = `<div style="display:flex;flex-direction:column;align-items:center;transform:translate(-50%, -100%);"><div style="background:${color};width:36px;height:36px;border:3px solid white;border-radius:50%;display:flex;align-items:center;justify-content:center;overflow:hidden;box-shadow:0 4px 10px rgba(0,0,0,0.3);animation: pulse 1.5s infinite;">${logoStr}</div><div style="background:#2563eb;color:white;font-size:12px;font-weight:900;padding:2px 8px;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,0.2);margin-top:4px;white-space:nowrap;width:max-content;">$${price}</div></div>`;
       } else {
-          htmlStr = `<div style="background:white;border:1.5px solid ${color};color:${color};font-size:10px;font-weight:900;padding:1px 5px;border-radius:6px;box-shadow:0 2px 4px rgba(0,0,0,0.15);text-align:center;white-space:nowrap;transform: translate(-50%, -50%);">$${price}</div>`;
+          // Si NO está seleccionado, se centra en su propio punto sin romper el width
+          htmlStr = `<div style="background:white;border:1.5px solid ${color};color:${color};font-size:11px;font-weight:900;padding:2px 6px;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,0.15);text-align:center;white-space:nowrap;transform:translate(-50%, -50%);width:max-content;">$${price}</div>`;
       }
 
-      return `var html_${s.id.replace(/\W/g,"")} = \`${htmlStr}\`; var m_${s.id.replace(/\W/g,"")} = L.marker([${s.lat}, ${s.lon}], {icon: L.divIcon({className: 'custom-leaflet-icon', html: html_${s.id.replace(/\W/g,"")}, iconSize: ${isSelected ? '[60,60]' : '[40,20]'}}), zIndexOffset:${isSelected?1000:1}}).addTo(map); m_${s.id.replace(/\W/g,"")}.on('click', function(){ window.parent.postMessage({type:'STATION_CLICKED', id:'${s.id}'}, '*'); });`;
+      return `var m_${s.id.replace(/\W/g,"")} = L.marker([${s.lat}, ${s.lon}], {icon: L.divIcon({className: '', html: \`${htmlStr}\`, iconSize: [0, 0]}), zIndexOffset:${isSelected?1000:1}}).addTo(map); m_${s.id.replace(/\W/g,"")}.on('click', function(){ window.parent.postMessage({type:'STATION_CLICKED', id:'${s.id}'}, '*'); });`;
   }).join("\n");
   
-  let userMarkerJs = userLoc ? `L.marker([${userLoc.lat}, ${userLoc.lon}], {icon: L.divIcon({className: 'custom-leaflet-icon', html: '<div style="background:#2563eb;width:100%;height:100%;border:3px solid white;border-radius:50%;box-shadow:0 0 0 4px rgba(37,99,235,0.4)"></div>', iconSize:[16,16]}), zIndexOffset: 2000}).addTo(map).bindPopup("<b>Tu ubicación</b>");` : "";
+  let userMarkerJs = userLoc ? `L.marker([${userLoc.lat}, ${userLoc.lon}], {icon: L.divIcon({className: '', html: '<div style="background:#2563eb;width:16px;height:16px;border:3px solid white;border-radius:50%;box-shadow:0 0 0 4px rgba(37,99,235,0.4);transform:translate(-50%, -50%);"></div>', iconSize:[0, 0]}), zIndexOffset: 2000}).addTo(map).bindPopup("<b>Tu ubicación</b>");` : "";
   
   let mapViewJs = "";
   if (showRouteLine && selectedStation && userLoc) {
      mapViewJs = `
        var r = L.polyline([[${userLoc.lat}, ${userLoc.lon}], [${selectedStation.lat}, ${selectedStation.lon}]], {color:'#3b82f6', weight:3, dashArray:'6,8'}).addTo(map); 
-       map.fitBounds(r.getBounds(), {paddingTopLeft: [50, 50], paddingBottomRight: [50, 250]});
+       map.fitBounds(r.getBounds(), {paddingTopLeft: [50, 50], paddingBottomRight: [50, window.innerHeight * 0.5 + 50]});
      `;
   } else if (selectedStation) {
      mapViewJs = `
        var target = L.latLng(${selectedStation.lat}, ${selectedStation.lon});
        var zoom = 14;
        var targetPoint = map.project(target, zoom);
-       var paddingBottom = window.innerWidth >= 1024 ? 300 : Math.min(window.innerHeight * 0.55, 400);
-       targetPoint.y += (paddingBottom / 2); 
+       targetPoint.y += (window.innerHeight * 0.25); // Desplaza visualmente el mapa para compensar el bottom sheet del 50%
        map.setView(map.unproject(targetPoint, zoom), zoom);
      `;
   } else {
      mapViewJs = `
        setTimeout(function() {
           var b = L.latLngBounds([${stations.map(s=>`[${s.lat},${s.lon}]`).join(",")}]);
-          var paddingBottom = window.innerWidth >= 1024 ? 300 : Math.min(window.innerHeight * 0.55, 400);
           if(b.isValid()) {
-              map.fitBounds(b, {paddingTopLeft: [50, 50], paddingBottomRight: [50, paddingBottom]});
+              map.fitBounds(b, {paddingTopLeft: [50, 50], paddingBottomRight: [50, 50]});
           }
        }, 100);
      `;
@@ -394,7 +386,6 @@ export default function App() {
   
   const [showStationModal, setShowStationModal] = useState(false);
   const [serviceMode, setServiceMode] = useState("asistido");
-  const [showAllDiscounts, setShowAllDiscounts] = useState(false);
   const [legalView, setLegalView] = useState(null);
   
   const [showCalcModal, setShowCalcModal] = useState(false);
@@ -429,6 +420,18 @@ export default function App() {
 
   const [detectedTolls, setDetectedTolls] = useState({ total: 0, list: [] });
   const [showTollsModal, setShowTollsModal] = useState(false);
+
+  // Evitar doble scroll en vista de mapa en móviles
+  useEffect(() => {
+    if (window.innerWidth < 1024) {
+      if (mobileStep === 2) {
+        document.body.style.overflow = 'hidden';
+      } else {
+        document.body.style.overflow = '';
+      }
+    }
+    return () => { document.body.style.overflow = ''; };
+  }, [mobileStep]);
 
   const availableComunas = React.useMemo(() => {
     const map = new globalThis.Map();
@@ -465,14 +468,28 @@ export default function App() {
     }
   }, []);
 
-  // URL Sync
+  // URL Sync (Corregido para mapear ciudades por coordenadas reales)
   useEffect(() => {
     if (cneStations.length > 0 && !urlParsed) {
       const params = new URLSearchParams(window.location.search);
       if (params.get('origen') || params.get('destino')) {
         setCalcMode('viaje');
-        if (params.get('origen')) setOriginCity({ mainName: decodeURIComponent(params.get('origen')), name: decodeURIComponent(params.get('origen')), isExternal: true });
-        if (params.get('destino')) setDestCity({ mainName: decodeURIComponent(params.get('destino')), name: decodeURIComponent(params.get('destino')), isExternal: true });
+        const oParam = params.get('origen');
+        const dParam = params.get('destino');
+
+        if (oParam) {
+          const normO = normalizeString(oParam);
+          const foundO = comunasDataForRouting.find(c => normalizeString(c.mainName) === normO || normalizeString(c.mainName).includes(normO));
+          if (foundO) setOriginCity(foundO);
+          else setOriginCity({ mainName: oParam, name: oParam, isExternal: true });
+        }
+        
+        if (dParam) {
+          const normD = normalizeString(dParam);
+          const foundD = comunasDataForRouting.find(c => normalizeString(c.mainName) === normD || normalizeString(c.mainName).includes(normD));
+          if (foundD) setDestCity(foundD);
+          else setDestCity({ mainName: dParam, name: dParam, isExternal: true });
+        }
       } else if (params.get('comuna')) {
         setCalcMode('carga');
         const queryComuna = normalizeString(params.get('comuna'));
@@ -487,7 +504,7 @@ export default function App() {
       }
       setUrlParsed(true);
     }
-  }, [cneStations, urlParsed, availableComunas]);
+  }, [cneStations, urlParsed, availableComunas, comunasDataForRouting]);
 
   useEffect(() => {
     if (!urlParsed) return;
@@ -509,9 +526,9 @@ export default function App() {
     if (tIdx >= 0 && tIdx < newWps.length) { const temp = newWps[index]; newWps[index] = newWps[tIdx]; newWps[tIdx] = temp; setWaypoints(newWps); }
   };
 
-  const handleSeoLinkClick = (e, comuna) => { e.preventDefault(); setCalcMode('carga'); setCargaComuna(comuna.toUpperCase()); setMobileStep(2); };
+  const handleSeoLinkClick = (e, comuna) => { e.preventDefault(); setCalcMode('carga'); setCargaComuna(comuna.toUpperCase()); setMobileStep(1); };
 
-  useEffect(() => { setCurrentStation(null); setShowStationModal(false); setShowAllDiscounts(false); if (cargaListRef.current) cargaListRef.current.scrollTop = 0; }, [cargaComuna, fuelType, sortBy]);
+  useEffect(() => { setCurrentStation(null); setShowStationModal(false); if (cargaListRef.current) cargaListRef.current.scrollTop = 0; }, [cargaComuna, fuelType, sortBy]);
 
   useEffect(() => {
     if (currentStation) {
@@ -527,7 +544,7 @@ export default function App() {
     if (c) {
       const up = [c, ...recentComunas.filter(rc => rc !== c)].slice(0, 3);
       setRecentComunas(up); localStorage.setItem('andesruta_recent_comunas', JSON.stringify(up));
-      if (window.innerWidth < 1024) setMobileStep(2);
+      if (window.innerWidth < 1024) setMobileStep(1);
     }
   };
 
@@ -576,7 +593,6 @@ export default function App() {
           const c = filteredStationsCarga.find(s => s.id === e.data.id); 
           if (c) { 
              setCurrentStation(c); 
-             setShowAllDiscounts(false); 
              if (window.innerWidth < 1024) setMobileStep(2);
           } 
        } 
@@ -603,30 +619,44 @@ export default function App() {
   useEffect(() => {
     const fetchRoute = async () => {
       if (calcMode !== "viaje") return;
-      if (!originCity || !destCity) { setDistanceKm("0"); setRouteGeometry(null); setDetectedTolls({ total: 0, list: [] }); setRouteError(false); return; }
+      
+      const validWaypoints = waypoints.filter(w => w !== null && w.lat !== undefined);
+      
+      if (!originCity || !destCity || originCity.lat === undefined || destCity.lat === undefined) { 
+          setDistanceKm("0"); 
+          setRouteGeometry(null); 
+          setDetectedTolls({ total: 0, list: [] }); 
+          setRouteError(false); 
+          return; 
+      }
+      
       setIsCalculatingRoute(true); setRouteError(false);
       const controller = new AbortController(); const timeoutId = setTimeout(() => controller.abort(), 15000); 
 
       const getRouteData = async (points) => {
         const coordsOSRM = points.map(p => `${p.lon},${p.lat}`).join(';');
         console.log("🛣️ Consultando API de rutas con puntos:", coordsOSRM);
-        return await Promise.any([{ url: `https://router.project-osrm.org/route/v1/driving/${coordsOSRM}?overview=full&geometries=geojson`, type: "osrm" }, { url: `https://routing.openstreetmap.de/routed-car/route/v1/driving/${coordsOSRM}?overview=full&geometries=geojson`, type: "osrm" }, { url: "https://api.openrouteservice.org/v2/directions/driving-car", type: "ors", body: { coordinates: points.map(p => [p.lon, p.lat]) } }].map(async (ep) => {
-          if (ep.type === "ors") {
-            const res = await fetch(ep.url, { method: "POST", headers: { "Authorization": "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjM5MDY2ZmJlZDhhNzRkYTZiMmVkOWI5MmI2NDcyM2Q1IiwiaCI6Im11cm11cjY0In0=", "Content-Type": "application/json" }, signal: controller.signal, body: JSON.stringify(ep.body) });
-            const data = await res.json(); 
-            if (!data || !data.routes || data.routes.length === 0) throw new Error("Invalid route from API");
-            return { geo: { coordinates: decodePolyline(data.routes[0].geometry) }, dist: data.routes[0].summary.distance / 1000 };
-          } else {
-            const res = await fetch(ep.url, { signal: controller.signal });
-            const data = await res.json(); 
-            if (!data || !data.routes || data.routes.length === 0) throw new Error("Invalid route from API");
-            return { geo: data.routes[0].geometry, dist: data.routes[0].distance / 1000 };
-          }
-        }));
+        
+        // Petición exclusiva y estricta a formato GeoJSON en dos servidores OSRM estables.
+        const urls = [
+          `https://router.project-osrm.org/route/v1/driving/${coordsOSRM}?overview=full&geometries=geojson`,
+          `https://routing.openstreetmap.de/routed-car/route/v1/driving/${coordsOSRM}?overview=full&geometries=geojson`
+        ];
+
+        for (const url of urls) {
+           try {
+             const res = await fetch(url, { signal: controller.signal });
+             if (!res.ok) continue;
+             const data = await res.json();
+             if (data && data.routes && data.routes.length > 0) {
+                return { geo: data.routes[0].geometry, dist: data.routes[0].distance / 1000 };
+             }
+           } catch(e) { console.warn("Ruta falló para URL:", url); }
+        }
+        throw new Error("Ambas APIs de ruta fallaron.");
       };
 
       try {
-        const validWaypoints = waypoints.filter(w => w !== null);
         const outboundPoints = [originCity, ...validWaypoints, destCity];
         const outboundResult = await getRouteData(outboundPoints);
 
@@ -645,7 +675,7 @@ export default function App() {
         setDistanceKm(finalDist.toFixed(1)); setRouteGeometry(finalGeo); setDetectedTolls({ total: finalTollsTotal, list: finalTollsList });
       } catch (err) {
         console.error("🔥 Error crítico en cálculo de ruta:", err);
-        const pts = [originCity, ...waypoints.filter(w => w !== null), destCity];
+        const pts = [originCity, ...validWaypoints, destCity];
         let fallbackDist = 0; for(let i=0; i<pts.length-1; i++) fallbackDist += calculateHaversineDistance(pts[i].lat, pts[i].lon, pts[i+1].lat, pts[i+1].lon);
         let fakeGeoOut = { coordinates: pts.map(p => [p.lon, p.lat]) }, tollsOut = detectTollsInRoute(fakeGeoOut);
         let finalDist = fallbackDist, finalGeo = fakeGeoOut, finalTollsTotal = tollsOut.total, finalTollsList = tollsOut.list;
@@ -756,7 +786,8 @@ export default function App() {
   }, []);
 
   let pricePerLiter = 0;
-  if (calcMode === "viaje" && originCity) {
+  if (calcMode === "viaje" && originCity && destCity) {
+    // Buscar estaciones válidas solo en el origen
     const regionStations = cneStations.filter((s) => s.regionId === originCity.regionId && getBestPrice(s.precios[fuelType]) > 0);
     if (regionStations.length > 0) pricePerLiter = Math.round(regionStations.reduce((acc, s) => acc + getBestPrice(s.precios[fuelType]), 0) / regionStations.length);
   }
@@ -779,11 +810,6 @@ export default function App() {
   const renderStationCard = (station, idx) => {
     const isCheapest = idx === 0 && !station.isOutdated && sortBy === 'price';
     const bestPrice = getBestPrice(station.precios[fuelType]);
-    const brandNormalized = normalizeString(station.distribuidor);
-    let stationDiscounts = null;
-    if (brandNormalized.includes("copec")) stationDiscounts = DESCUENTOS_POR_MARCA["copec"];
-    else if (brandNormalized.includes("shell")) stationDiscounts = DESCUENTOS_POR_MARCA["shell"];
-    else if (brandNormalized.includes("aramco")) stationDiscounts = DESCUENTOS_POR_MARCA["aramco"];
     
     const pObjList = station.precios[fuelType];
     const autoPriceList = pObjList?.autoservicio || 0;
@@ -799,7 +825,6 @@ export default function App() {
              onClick={() => { 
                 setCurrentStation(station); 
                 setShowCalcModal(false); 
-                setShowAllDiscounts(false); 
                 if (window.innerWidth < 1024) setMobileStep(2);
              }} 
              className={`w-full shrink-0 flex flex-col p-4 rounded-[1.5rem] cursor-pointer transition-all duration-300 bg-white border ${currentStation?.id === station.id ? 'border-blue-400 shadow-md ring-2 ring-blue-400/20 scale-[1.02] z-10' : 'border-slate-200 shadow-sm hover:border-blue-300 hover:shadow-md hover:scale-[1.01] transform-gpu'}`}>
@@ -811,7 +836,6 @@ export default function App() {
                 <span className="font-black text-[13px] truncate text-slate-800">{station.distribuidor}</span>
                 {isCheapest && <span className="text-[9px] font-black rounded-full px-1.5 py-0.5 shrink-0 flex items-center transition-colors text-emerald-800 bg-emerald-100 border border-emerald-200"><TrendingUp className="w-2.5 h-2.5 mr-0.5" /> TOP 1</span>}
                 {station.hasAuto && <span className="text-[8px] font-black rounded-full px-1.5 py-0.5 shrink-0 uppercase transition-colors text-blue-700 bg-blue-50 border border-blue-100">{autoLabelList}</span>}
-                {stationDiscounts && <span className="text-[8px] font-black rounded-full px-1.5 py-0.5 shrink-0 uppercase transition-colors text-rose-700 bg-rose-50 border border-rose-100">Dctos</span>}
               </div>
               <span className="text-[11px] truncate font-bold text-slate-500" title={station.direccion}>{station.direccion}</span>
               <div className="flex items-center mt-2.5">
@@ -830,72 +854,6 @@ export default function App() {
         </div>
         {idx > 0 && idx % 4 === 0 && <AdPlaceholder className="my-2" />}
       </React.Fragment>
-    );
-  };
-
-  const renderDiscountsSection = (station) => {
-    const brandNormalized = normalizeString(station.distribuidor);
-    let stationDiscounts = null;
-    if (brandNormalized.includes("copec")) stationDiscounts = DESCUENTOS_POR_MARCA["copec"];
-    else if (brandNormalized.includes("shell")) stationDiscounts = DESCUENTOS_POR_MARCA["shell"];
-    else if (brandNormalized.includes("aramco") || brandNormalized.includes("petrobras")) stationDiscounts = DESCUENTOS_POR_MARCA["aramco"];
-
-    if (!stationDiscounts) return null;
-
-    const dayIndex = new Date().getDay();
-    const days = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
-    const todayStr = days[dayIndex];
-    const isDiscountToday = (diaStr) => { 
-        if (diaStr === "Todos los días" || diaStr === todayStr) return true; 
-        if (diaStr === "Lun-Vie" && dayIndex >= 1 && dayIndex <= 5) return true; 
-        if (diaStr === "Lun y Mar" && (dayIndex === 1 || dayIndex === 2)) return true; 
-        return false; 
-    };
-
-    const todayDiscounts = stationDiscounts.filter(d => isDiscountToday(d.dia));
-    const otherDiscounts = stationDiscounts.filter(d => !isDiscountToday(d.dia));
-
-    return (
-      <div className="mb-2">
-        <h4 className="text-[11px] font-black text-rose-600 uppercase tracking-widest flex items-center gap-1 mb-3"><Tag className="w-3.5 h-3.5" /> Promociones vigentes</h4>
-        {todayDiscounts.length > 0 ? (
-           <div className="grid grid-cols-1 gap-2.5 mb-3">
-             {todayDiscounts.map((d, i) => (
-               <div key={`today-${i}`} className="rounded-[1rem] p-3 flex items-start gap-2.5 shadow-sm border bg-rose-500 border-rose-600">
-                  <div className="p-2 rounded-lg shrink-0 mt-0.5 bg-white/20 text-white"><Tag className="w-4 h-4" /></div>
-                  <div className="flex flex-col w-full">
-                     <div className="flex justify-between items-center mb-0.5 gap-2">
-                         <span className="text-[11px] font-black leading-none text-rose-50">{d.dia}</span>
-                         <span className="text-[9px] font-black bg-white text-rose-600 px-1.5 py-0.5 rounded-full shadow-sm animate-pulse leading-none shrink-0">¡HOY!</span>
-                     </div>
-                     <span className="text-[11px] font-medium leading-snug text-white">{d.desc}</span>
-                  </div>
-               </div>
-             ))}
-           </div>
-        ) : (<p className="text-xs font-medium text-slate-500 mb-4 px-1">No hay promociones aplicables para el día de hoy en esta estación.</p>)}
-
-        {otherDiscounts.length > 0 && (
-           <div className="flex flex-col gap-2">
-             <button onClick={() => setShowAllDiscounts(!showAllDiscounts)} className="text-[11px] font-extrabold text-rose-700 hover:text-rose-800 flex items-center justify-center w-full py-2.5 bg-rose-50 rounded-xl transition-colors cursor-pointer border border-rose-100/50">
-               {showAllDiscounts ? 'Ocultar otros descuentos' : `Ver ${otherDiscounts.length} descuentos de otros días`} <ChevronDown className={`w-3 h-3 ml-1 transition-transform ${showAllDiscounts ? 'rotate-180' : ''}`} />
-             </button>
-             {showAllDiscounts && (
-               <div className="grid grid-cols-1 gap-2.5 mt-1 animate-in fade-in slide-in-from-top-2">
-                 {otherDiscounts.map((d, i) => (
-                   <div key={`other-${i}`} className="rounded-[1rem] p-3 flex items-start gap-2.5 border bg-rose-50/50 border-rose-100">
-                      <div className="p-2 rounded-lg shrink-0 mt-0.5 bg-rose-100 text-rose-600"><Tag className="w-4 h-4" /></div>
-                      <div className="flex flex-col w-full">
-                         <span className="text-[11px] font-black leading-none text-rose-900 mb-1">{d.dia}</span>
-                         <span className="text-[11px] font-medium leading-snug text-slate-600">{d.desc}</span>
-                      </div>
-                   </div>
-                 ))}
-               </div>
-             )}
-           </div>
-        )}
-      </div>
     );
   };
 
@@ -944,7 +902,7 @@ export default function App() {
         )}
       </div>
 
-      {/* LISTA DE ESTACIONES EN EL FLUJO WEB (DESKTOP Y MOBILE) */}
+      {/* LISTA DE ESTACIONES EN EL FLUJO WEB (DESKTOP) Y MÓVIL (BÚSQUEDA) */}
       {cargaComuna && filteredStationsCarga.length > 0 && (
         <div className="flex flex-col flex-1 mt-8 w-full animate-in fade-in duration-500">
           <div className="flex items-center justify-between pb-3 px-1 border-b border-slate-200/60 mb-4 shrink-0">
@@ -959,15 +917,6 @@ export default function App() {
           <div className="flex-1 flex flex-col gap-4 pb-24 lg:pb-8 w-full" ref={cargaListRef}>
              {filteredStationsCarga.map((station, idx) => renderStationCard(station, idx))}
           </div>
-        </div>
-      )}
-
-      {/* BOTÓN FLOTANTE MÓVIL PARA VER MAPA */}
-      {cargaComuna && filteredStationsCarga.length > 0 && (
-        <div className="lg:hidden fixed bottom-6 left-1/2 -translate-x-1/2 z-50">
-           <button onClick={() => setMobileStep(2)} className="bg-slate-900 text-white px-6 py-3.5 rounded-full font-black text-sm shadow-xl shadow-slate-900/20 flex items-center gap-2 whitespace-nowrap active:scale-95 transition-all cursor-pointer">
-              Ver Mapa <MapIcon className="w-4 h-4" />
-           </button>
         </div>
       )}
 
@@ -1088,9 +1037,12 @@ export default function App() {
     return (
       <div className="w-full h-full flex flex-col relative bg-slate-200 lg:rounded-[2rem] lg:shadow-xl lg:border-[6px] lg:border-white lg:overflow-hidden">
         
-        {/* Botón volver Mobile */}
+        {/* Botón volver Mobile (Aparece en modo mapa) */}
         <div className="lg:hidden absolute top-4 left-4 z-20">
-            <button onClick={() => setMobileStep(1)} className="bg-white/95 backdrop-blur-md p-2.5 rounded-full shadow-lg text-slate-800 flex items-center justify-center cursor-pointer">
+            <button onClick={() => {
+                setMobileStep(1);
+                setCurrentStation(null);
+            }} className="bg-white/95 backdrop-blur-md p-2.5 rounded-full shadow-lg text-slate-800 flex items-center justify-center cursor-pointer">
               <ChevronLeft className="w-6 h-6"/>
             </button>
         </div>
@@ -1100,122 +1052,111 @@ export default function App() {
            {stationsMapUrl ? <iframe key={`map-${stationsMapUrl}-${mobileStep}`} src={stationsMapUrl} title="Mapa Estaciones" className="w-full h-full" style={{ border: 0 }} sandbox="allow-scripts allow-same-origin" /> : <div className="w-full h-full flex items-center justify-center text-slate-400"><Loader2 className="w-8 h-8 animate-spin" /></div>}
         </div>
         
-        {/* PANEL DETALLE / LISTA (DESKTOP Y MOBILE BOTTOM SHEET) */}
-        <div className={`absolute bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xl lg:rounded-b-[1rem] rounded-t-[2.5rem] lg:rounded-t-[2rem] p-5 sm:p-6 shadow-[0_-15px_40px_rgba(0,0,0,0.12)] border-t border-slate-200 z-30 flex flex-col max-h-[85vh] lg:max-h-[60vh] transition-all duration-300 ${!currentStation ? 'lg:hidden' : ''}`}>
-           {/* Pestañita Drag Handle solo visible en mobile */}
-           <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-5 shrink-0 lg:hidden"></div>
+        {/* PANEL DETALLE ESTACION (BOTTOM SHEET MÓVIL Y ESCRITORIO - 50/50) */}
+        {currentStation && !showCalcModal && (
+           <div className="absolute bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xl lg:rounded-b-[1rem] rounded-t-[2.5rem] lg:rounded-t-[2rem] p-5 sm:p-6 shadow-[0_-15px_40px_rgba(0,0,0,0.12)] border-t border-slate-200 z-30 flex flex-col h-[50%] transition-all duration-300">
+              <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-3 shrink-0 lg:hidden"></div>
 
-           {currentStation ? (
-              !showCalcModal ? (
-                 <div className="flex flex-col flex-1 overflow-hidden lg:max-w-3xl lg:mx-auto w-full">
-                    <div className="flex justify-between items-start mb-4 shrink-0">
-                       <div className="flex items-center gap-3">
-                          {currentStation.logo ? <img src={currentStation.logo} className="w-10 h-10 object-contain rounded-full border border-slate-100 p-1 bg-white" /> : <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center"><Fuel className="w-6 h-6 text-slate-400" /></div>}
-                          <div>
-                             <h3 className="font-black text-slate-900 text-[16px] leading-tight">{currentStation.distribuidor}</h3>
-                             <p className="text-[11px] font-bold text-slate-500 mt-0.5">{currentStation.direccion}</p>
-                          </div>
+              <div className="flex flex-col flex-1 overflow-hidden lg:max-w-3xl lg:mx-auto w-full">
+                 <div className="flex justify-between items-start mb-4 shrink-0">
+                    <div className="flex items-center gap-3">
+                       {currentStation.logo ? <img src={currentStation.logo} className="w-10 h-10 object-contain rounded-full border border-slate-100 p-1 bg-white" /> : <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center"><Fuel className="w-6 h-6 text-slate-400" /></div>}
+                       <div>
+                          <h3 className="font-black text-slate-900 text-[16px] leading-tight">{currentStation.distribuidor}</h3>
+                          <p className="text-[11px] font-bold text-slate-500 mt-0.5">{currentStation.direccion}</p>
                        </div>
-                       <button onClick={(e) => { e.stopPropagation(); setCurrentStation(null); }} className="bg-slate-100 p-2.5 rounded-full hover:bg-slate-200 transition-colors shrink-0 ml-2"><X className="w-4 h-4 text-slate-600"/></button>
                     </div>
-                    
-                    <div className="flex-1 overflow-y-auto no-scrollbar pb-2 px-1">
-                       {(() => {
-                          const pBase = currentStation.precios[fuelType];
-                          const hasAuto = ["93", "95", "97", "diesel", "parafina"].some(t => currentStation.precios[t]?.autoservicio > 0);
-                          const hasAsis = ["93", "95", "97", "diesel", "parafina"].some(t => currentStation.precios[t]?.asistido > 0);
-                          if (hasAuto && hasAsis) {
-                            const diffBase = (pBase?.autoservicio > 0 && pBase?.asistido > 0 && pBase.autoservicio < pBase.asistido) ? (pBase.asistido - pBase.autoservicio) : 0;
-                            return (
-                              <div className="mb-4 mt-2">
-                                <div className="flex bg-slate-200/60 p-1 rounded-xl">
-                                  <button onClick={()=>setServiceMode("asistido")} className={`flex-1 text-[11px] font-bold py-2.5 rounded-lg transition-all ${serviceMode === 'asistido' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500'}`}>Asistido</button>
-                                  <button onClick={()=>setServiceMode("autoservicio")} className={`flex-1 text-[11px] font-bold py-2.5 rounded-lg transition-all ${serviceMode === 'autoservicio' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500'}`}>
-                                    Auto {diffBase > 0 ? <span className="text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-md ml-1 text-[10px]">-$ {diffBase}</span> : ''}
-                                  </button>
-                                </div>
-                                <div className="mt-3 text-[10px] text-slate-500 flex items-start gap-1.5 leading-tight px-2">
-                                    <Info className="w-4 h-4 shrink-0 text-blue-500" />
-                                    <span>
-                                      <b>Autoservicio:</b> Tú cargas el combustible (más barato). <b>Asistido:</b> Un atendedor realiza la carga. 
-                                      {diffBase > 0 ? <span className="text-blue-600 font-bold block mt-1">Esta estación ofrece un descuento de ${diffBase} por litro en modalidad autoservicio.</span> : ''}
-                                    </span>
-                                </div>
-                              </div>
-                            )
-                          }
-                          return null;
-                       })()}
+                    <button onClick={(e) => { 
+                        e.stopPropagation(); 
+                        setCurrentStation(null); 
+                        if (window.innerWidth < 1024) setMobileStep(1);
+                    }} className="bg-slate-100 p-2.5 rounded-full hover:bg-slate-200 transition-colors shrink-0 ml-2"><X className="w-4 h-4 text-slate-600"/></button>
+                 </div>
+                 
+                 <div className="flex-1 overflow-y-auto no-scrollbar pb-2 px-1">
+                    {(() => {
+                       const pBase = currentStation.precios[fuelType];
+                       const hasAuto = ["93", "95", "97", "diesel", "parafina"].some(t => currentStation.precios[t]?.autoservicio > 0);
+                       const hasAsis = ["93", "95", "97", "diesel", "parafina"].some(t => currentStation.precios[t]?.asistido > 0);
+                       if (hasAuto && hasAsis) {
+                         const diffBase = (pBase?.autoservicio > 0 && pBase?.asistido > 0 && pBase.autoservicio < pBase.asistido) ? (pBase.asistido - pBase.autoservicio) : 0;
+                         return (
+                           <div className="mb-4 mt-2">
+                             <div className="flex bg-slate-200/60 p-1 rounded-xl">
+                               <button onClick={()=>setServiceMode("asistido")} className={`flex-1 text-[11px] font-bold py-2.5 rounded-lg transition-all ${serviceMode === 'asistido' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500'}`}>Asistido</button>
+                               <button onClick={()=>setServiceMode("autoservicio")} className={`flex-1 text-[11px] font-bold py-2.5 rounded-lg transition-all ${serviceMode === 'autoservicio' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500'}`}>
+                                 Auto {diffBase > 0 ? <span className="text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-md ml-1 text-[10px]">-$ {diffBase}</span> : ''}
+                               </button>
+                             </div>
+                             <div className="mt-3 text-[10px] text-slate-500 flex items-start gap-1.5 leading-tight px-2">
+                                 <Info className="w-4 h-4 shrink-0 text-blue-500" />
+                                 <span>
+                                   <b>Autoservicio:</b> Tú cargas el combustible (más barato). <b>Asistido:</b> Un atendedor realiza la carga. 
+                                   {diffBase > 0 ? <span className="text-blue-600 font-bold block mt-1">Esta estación ofrece un descuento de ${diffBase} por litro en modalidad autoservicio.</span> : ''}
+                                 </span>
+                             </div>
+                           </div>
+                         )
+                       }
+                       return null;
+                    })()}
 
-                       <div className="grid grid-cols-2 lg:grid-cols-3 gap-2 mb-4 mt-2">
-                          {["93", "95", "97", "diesel", "parafina"].map((t) => {
-                             const p = currentStation.precios[t];
-                             const priceToShow = p?.[serviceMode];
-                             if (!priceToShow || priceToShow === 0) return null;
-                             const isThisFuelSelected = t === fuelType;
-                             return (
-                               <div key={t} className={`rounded-xl p-2.5 flex justify-between items-center border ${isThisFuelSelected ? 'bg-blue-50 border-blue-200' : 'bg-white border-slate-200'}`}>
-                                 <span className={`text-[10px] font-bold uppercase ${isThisFuelSelected ? 'text-blue-700' : 'text-slate-500'}`}>{t === "diesel" ? "Diesel" : t === "parafina" ? "Parafina" : `${t} Oct`}</span>
-                                 <span className={`text-[13px] font-black ${isThisFuelSelected ? 'text-blue-700' : 'text-slate-900'}`}>{formatCLP(priceToShow)}</span>
-                               </div>
-                             );
-                          })}
-                       </div>
-                       
-                       {/* DESCUENTOS EN MÓVIL Y DESKTOP */}
-                       {renderDiscountsSection(currentStation)}
-
-                    </div>
-                    <div className="flex gap-2 pt-3 border-t border-slate-100 mt-1 shrink-0 pb-6 lg:pb-0">
-                       <button onClick={() => { setCalcFuelType(fuelType); setShowCalcModal(true); }} className="flex-1 bg-slate-900 text-white rounded-xl py-3.5 text-[13px] font-extrabold flex items-center justify-center gap-1.5 shadow-xl shadow-slate-900/20 active:scale-95 transition-transform"><Calculator className="w-4 h-4" /> Calcular</button>
-                       <a href={`https://www.google.com/maps/dir/?api=1&destination=${currentStation.lat},${currentStation.lon}`} target="_blank" rel="noopener noreferrer" className="flex-1 bg-blue-600 text-white rounded-xl py-3.5 text-[13px] font-extrabold flex items-center justify-center gap-1.5 shadow-xl shadow-blue-600/20 active:scale-95 transition-transform"><MapPin className="w-3.5 h-3.5" /> Llegar</a>
+                    <div className="grid grid-cols-2 lg:grid-cols-3 gap-2 mb-4 mt-2">
+                       {["93", "95", "97", "diesel", "parafina"].map((t) => {
+                          const p = currentStation.precios[t];
+                          const priceToShow = p?.[serviceMode];
+                          if (!priceToShow || priceToShow === 0) return null;
+                          const isThisFuelSelected = t === fuelType;
+                          return (
+                            <div key={t} className={`rounded-xl p-2.5 flex justify-between items-center border ${isThisFuelSelected ? 'bg-blue-50 border-blue-200' : 'bg-white border-slate-200'}`}>
+                              <span className={`text-[10px] font-bold uppercase ${isThisFuelSelected ? 'text-blue-700' : 'text-slate-500'}`}>{t === "diesel" ? "Diesel" : t === "parafina" ? "Parafina" : `${t} Oct`}</span>
+                              <span className={`text-[13px] font-black ${isThisFuelSelected ? 'text-blue-700' : 'text-slate-900'}`}>{formatCLP(priceToShow)}</span>
+                            </div>
+                          );
+                       })}
                     </div>
                  </div>
-              ) : (
-                 <div className="flex flex-col flex-1 overflow-hidden lg:max-w-2xl lg:mx-auto w-full">
-                    <div className="flex justify-between items-center mb-4 shrink-0 px-1">
-                       <h3 className="font-black text-slate-900 flex items-center text-lg"><Calculator className="w-5 h-5 mr-2 text-slate-900"/> Calculadora</h3>
-                       <button onClick={() => {setShowCalcModal(false); setCalcVal("");}} className="bg-slate-100 p-2.5 rounded-full hover:bg-slate-200 transition-colors cursor-pointer"><ChevronLeft className="w-4 h-4 text-slate-600"/></button>
+                 <div className="flex gap-2 pt-3 border-t border-slate-100 mt-1 shrink-0 pb-6 lg:pb-0">
+                    <button onClick={() => { setCalcFuelType(fuelType); setShowCalcModal(true); }} className="flex-1 bg-slate-900 text-white rounded-xl py-3.5 text-[13px] font-extrabold flex items-center justify-center gap-1.5 shadow-xl shadow-slate-900/20 active:scale-95 transition-transform"><Calculator className="w-4 h-4" /> Calcular</button>
+                    <a href={`https://www.google.com/maps/dir/?api=1&destination=${currentStation.lat},${currentStation.lon}`} target="_blank" rel="noopener noreferrer" className="flex-1 bg-blue-600 text-white rounded-xl py-3.5 text-[13px] font-extrabold flex items-center justify-center gap-1.5 shadow-xl shadow-blue-600/20 active:scale-95 transition-transform"><MapPin className="w-3.5 h-3.5" /> Llegar</a>
+                 </div>
+              </div>
+           </div>
+        )}
+
+        {currentStation && showCalcModal && (
+           <div className="absolute bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xl lg:rounded-b-[1rem] rounded-t-[2.5rem] lg:rounded-t-[2rem] p-5 sm:p-6 shadow-[0_-15px_40px_rgba(0,0,0,0.12)] border-t border-slate-200 z-30 flex flex-col h-[50%] transition-all duration-300">
+              <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-3 shrink-0 lg:hidden"></div>
+              
+              <div className="flex flex-col flex-1 overflow-hidden lg:max-w-2xl lg:mx-auto w-full">
+                 <div className="flex justify-between items-center mb-3 shrink-0 px-1">
+                    <h3 className="font-black text-slate-900 flex items-center text-lg"><Calculator className="w-5 h-5 mr-2 text-slate-900"/> Calculadora</h3>
+                    <button onClick={() => {setShowCalcModal(false); setCalcVal("");}} className="bg-slate-100 p-2.5 rounded-full hover:bg-slate-200 transition-colors cursor-pointer"><ChevronLeft className="w-4 h-4 text-slate-600"/></button>
+                 </div>
+                 <div className="flex-1 overflow-y-auto no-scrollbar pb-2 px-1 space-y-4">
+                    <div className="flex bg-slate-200/60 p-1.5 rounded-[1rem]">
+                       <button onClick={() => { setCalcUnit("money"); setCalcVal(""); }} className={`flex-1 text-[12px] font-bold px-3 py-2 rounded-xl transition-all cursor-pointer ${calcUnit === 'money' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500'}`}>💵 Pesos ($)</button>
+                       <button onClick={() => { setCalcUnit("liters"); setCalcVal(""); }} className={`flex-1 text-[12px] font-bold px-3 py-2 rounded-xl transition-all cursor-pointer ${calcUnit === 'liters' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500'}`}>⛽ Litros (L)</button>
                     </div>
-                    <div className="flex-1 overflow-y-auto no-scrollbar pb-2 px-1 space-y-4">
-                       <div className="flex bg-slate-200/60 p-1.5 rounded-[1rem]">
-                          <button onClick={() => { setCalcUnit("money"); setCalcVal(""); }} className={`flex-1 text-[12px] font-bold px-3 py-2 rounded-xl transition-all cursor-pointer ${calcUnit === 'money' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500'}`}>💵 Pesos ($)</button>
-                          <button onClick={() => { setCalcUnit("liters"); setCalcVal(""); }} className={`flex-1 text-[12px] font-bold px-3 py-2 rounded-xl transition-all cursor-pointer ${calcUnit === 'liters' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500'}`}>⛽ Litros (L)</button>
-                       </div>
-                       <div className="relative">
-                         <input type="number" min="0" step={calcUnit === "liters" ? "0.1" : "1000"} value={calcVal || ""} onChange={(e) => setCalcVal(e.target.value)} className="w-full p-3 text-center text-xl border border-slate-200 rounded-[1.25rem] focus:ring-2 focus:ring-blue-500 outline-none font-black text-slate-900 bg-white shadow-sm" placeholder={calcUnit === "money" ? "Monto en $" : "Cantidad en Lts"} />
-                       </div>
-                       <div className="bg-slate-100 p-4 rounded-2xl flex flex-col items-center justify-center mt-4">
-                          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">{calcUnit === "money" ? "Recibirás aprox." : "Costo estimado"}</span>
-                          <span className="text-2xl font-black text-slate-900">
-                            {(() => {
-                               const p = currentStation.precios[calcFuelType]?.[serviceMode];
-                               const v = parseFloat(calcVal) || 0;
-                               if (!p || p === 0) return "---";
-                               return calcUnit === "money" ? `${(v / p).toFixed(1)} Lts` : formatCLP(v * p);
-                            })()}
-                          </span>
-                       </div>
+                    <div className="relative">
+                      <input type="number" min="0" step={calcUnit === "liters" ? "0.1" : "1000"} value={calcVal || ""} onChange={(e) => setCalcVal(e.target.value)} className="w-full p-3 text-center text-xl border border-slate-200 rounded-[1.25rem] focus:ring-2 focus:ring-blue-500 outline-none font-black text-slate-900 bg-white shadow-sm" placeholder={calcUnit === "money" ? "Monto en $" : "Cantidad en Lts"} />
+                    </div>
+                    <div className="bg-slate-100 p-4 rounded-2xl flex flex-col items-center justify-center mt-4">
+                       <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">{calcUnit === "money" ? "Recibirás aprox." : "Costo estimado"}</span>
+                       <span className="text-2xl font-black text-slate-900">
+                         {(() => {
+                            const p = currentStation.precios[calcFuelType]?.[serviceMode];
+                            const v = parseFloat(calcVal) || 0;
+                            if (!p || p === 0) return "---";
+                            return calcUnit === "money" ? `${(v / p).toFixed(1)} Lts` : formatCLP(v * p);
+                         })()}
+                       </span>
                     </div>
                  </div>
-              )
-           ) : (
-             <div className="lg:hidden flex flex-col flex-1 overflow-hidden">
-                <div className="flex justify-between items-center mb-4 shrink-0 px-1">
-                   <h3 className="text-[15px] font-black text-slate-800 tracking-tight">{filteredStationsCarga.length} Estaciones en {cargaComuna}</h3>
-                   {isUserNearCurrentComuna && (
-                     <div className="flex bg-slate-100 p-1 rounded-xl">
-                       <button onClick={() => setSortBy('price')} className={`text-[10px] font-bold px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer ${sortBy === 'price' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500'}`}>Precio</button>
-                       <button onClick={() => setSortBy('distance')} className={`text-[10px] font-bold px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer ${sortBy === 'distance' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500'}`}>Cercanía</button>
-                     </div>
-                   )}
-                </div>
-                <div className="flex-1 overflow-y-auto no-scrollbar pb-8 px-1 space-y-3">
-                   {filteredStationsCarga.map((station, idx) => renderStationCard(station, idx))}
-                </div>
-             </div>
-           )}
-        </div>
+              </div>
+           </div>
+        )}
+
       </div>
     );
   };
