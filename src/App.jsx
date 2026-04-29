@@ -9,8 +9,8 @@ import {
 // =====================================================================
 // 🛑 CONFIGURACIÓN DE RUTAS Y API (Vía Proxy Local / Vercel)
 // =====================================================================
-const RUTA_LOGIN = "https://api.cne.cl/api/login";
-const RUTA_ESTACIONES = "https://api.cne.cl/api/v4/estaciones";
+const RUTA_LOGIN = "/api-cne/api/login";
+const RUTA_ESTACIONES = "/api-cne/api/v4/estaciones";
 
 const REGION_MAP = {
   arica: "XV", parinacota: "XV", tarapacá: "I", tarapaca: "I",
@@ -35,21 +35,24 @@ const AdPlaceholder = ({ className = "" }) => {
   const containerRef = useRef(null);
 
   useEffect(() => {
-    let timeoutId;
-    if (!adRef.current && containerRef.current) {
-      // Retraso ligero para asegurar que el contenedor tenga dimensiones calculadas
-      timeoutId = setTimeout(() => {
-        try {
-          if (window && typeof window !== "undefined" && containerRef.current.offsetWidth > 0) {
+    if (!containerRef.current) return;
+
+    // Usamos IntersectionObserver para inyectar el anuncio SOLO cuando el contenedor es visible y tiene tamaño real
+    const observer = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting && !adRef.current) {
+        if (containerRef.current.offsetWidth > 0) {
+          try {
             (window.adsbygoogle = window.adsbygoogle || []).push({});
+            adRef.current = true;
+          } catch (e) {
+            console.warn("AdSense:", e.message);
           }
-        } catch (e) {
-          console.warn("AdSense:", e.message);
         }
-      }, 500);
-      adRef.current = true;
-    }
-    return () => clearTimeout(timeoutId);
+      }
+    }, { threshold: 0.1 });
+
+    observer.observe(containerRef.current);
+    return () => observer.disconnect();
   }, []);
 
   return (
@@ -317,6 +320,7 @@ function generateStationsMapHtml(stations, selectedStation, userLoc, showRouteLi
           const logoStr = s.logo ? `<img src="${s.logo}" style="width:100%;height:100%;object-fit:contain;padding:4px;border-radius:50%;background:white;box-sizing:border-box;"/>` : `<span style="font-size:12px;font-weight:900;color:#334155;">${s.distribuidor.substring(0,1)}</span>`;
           htmlStr = `<div style="display:flex;flex-direction:column;align-items:center;transform:translate(-50%, -100%);"><div style="background:${color};width:36px;height:36px;border:3px solid white;border-radius:50%;display:flex;align-items:center;justify-content:center;overflow:hidden;box-shadow:0 4px 10px rgba(0,0,0,0.3);animation: pulse 1.5s infinite;">${logoStr}</div><div style="background:#2563eb;color:white;font-size:12px;font-weight:900;padding:2px 8px;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,0.2);margin-top:4px;white-space:nowrap;width:max-content;">$${price}</div></div>`;
       } else {
+          // Si NO está seleccionado, se centra en su propio punto sin romper el width
           htmlStr = `<div style="background:white;border:1.5px solid ${color};color:${color};font-size:11px;font-weight:900;padding:2px 6px;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,0.15);text-align:center;white-space:nowrap;transform:translate(-50%, -50%);width:max-content;">$${price}</div>`;
       }
 
@@ -790,11 +794,12 @@ export default function App() {
       try {
         console.log("🚀 Iniciando conexión con CNE (Login)... RUTA:", RUTA_LOGIN);
         
-        // Uso de URL absoluta genérica para evitar errores de parseo en entornos sin origen definido
-        const loginUrl = new URL(RUTA_LOGIN, window.location.origin === "null" ? "https://api.cne.cl" : window.location.origin).href;
-        const estUrl = new URL(RUTA_ESTACIONES, window.location.origin === "null" ? "https://api.cne.cl" : window.location.origin).href;
+        // Evitamos el error de parseo de URL relativa en el entorno de previsualización (Canvas/Blob)
+        if (window.location.protocol === 'blob:' || window.location.origin === 'null') {
+           throw new Error("Entorno de previsualización detectado. Forzando datos DEMO.");
+        }
         
-        const loginRes = await fetch(loginUrl, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: "email=nicolas0645@gmail.com&password=12qwaszxL" });
+        const loginRes = await fetch(RUTA_LOGIN, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: "email=nicolas0645@gmail.com&password=12qwaszxL" });
         console.log("✅ Status Login CNE:", loginRes.status);
         
         if (!loginRes.ok) throw new Error(`Error en Login.`);
@@ -803,7 +808,7 @@ export default function App() {
         if (token) {
           console.log("🔑 Token obtenido correctamente. Consultando Estaciones...");
           setAuthStatus("success");
-          const stRes = await fetch(estUrl, { headers: { Token: token, Authorization: `Bearer ${token}`, Accept: "application/json" } });
+          const stRes = await fetch(RUTA_ESTACIONES, { headers: { Token: token, Authorization: `Bearer ${token}`, Accept: "application/json" } });
           console.log("✅ Status Estaciones CNE:", stRes.status);
           const stData = await stRes.json();
           const raw = Array.isArray(stData) ? stData : stData.data || stData.estaciones || [];
@@ -1158,7 +1163,7 @@ export default function App() {
             <button onClick={() => {
                 setMobileStep(1);
                 setCurrentStation(null);
-            }} className="bg-white/90 backdrop-blur-md p-2.5 rounded-full shadow-lg border border-slate-100 text-slate-800 flex items-center justify-center cursor-pointer">
+            }} className="bg-white/95 backdrop-blur-md p-2.5 rounded-full shadow-lg text-slate-800 flex items-center justify-center cursor-pointer">
               <ChevronLeft className="w-6 h-6"/>
             </button>
         </div>
@@ -1170,7 +1175,7 @@ export default function App() {
         
         {/* PANEL DETALLE ESTACION (ADAPTABLE AL CONTENIDO) */}
         {currentStation && !showCalcModal && (
-           <div className="w-full bg-white/95 backdrop-blur-xl p-6 shadow-[0_-20px_40px_rgba(0,0,0,0.12)] pb-8 lg:pb-6 border-t border-slate-200 shrink-0 z-30 transition-all duration-300">
+           <div className="w-full bg-white/95 backdrop-blur-xl p-5 sm:p-6 shadow-[0_-15px_40px_rgba(0,0,0,0.12)] border-t border-slate-200 z-30 flex flex-col shrink-0 transition-all duration-300">
 
               <div className="flex flex-col overflow-hidden max-w-3xl mx-auto w-full">
                  <div className="flex justify-between items-start mb-4 shrink-0">
@@ -1248,7 +1253,7 @@ export default function App() {
         )}
 
         {currentStation && showCalcModal && (
-           <div className="w-full bg-white/95 backdrop-blur-xl p-6 shadow-[0_-20px_40px_rgba(0,0,0,0.12)] pb-8 lg:pb-6 border-t border-slate-200 shrink-0 z-30 transition-all duration-300">
+           <div className="w-full bg-white/95 backdrop-blur-xl p-5 sm:p-6 shadow-[0_-15px_40px_rgba(0,0,0,0.12)] border-t border-slate-200 z-30 flex flex-col shrink-0 transition-all duration-300">
               
               <div className="flex flex-col overflow-hidden max-w-2xl mx-auto w-full">
                  <div className="flex justify-between items-center mb-3 shrink-0 px-1">
@@ -1611,7 +1616,7 @@ export default function App() {
                 
               {/* PANEL DERECHO (MAPA Y RESULTADOS STICKY) */}
               <div className={`flex-1 w-full ${mobileStep === 1 ? 'hidden lg:block' : 'block'}`}>
-                 <div className={`w-full flex flex-col lg:sticky lg:top-[90px] lg:h-[calc(100vh-130px)] ${mobileStep === 2 ? 'fixed inset-0 z-[150] lg:relative lg:inset-auto lg:z-10' : 'relative h-[calc(100vh-70px)] z-10'}`}>
+                 <div className={`w-full z-10 flex flex-col lg:sticky lg:top-[90px] lg:h-[calc(100vh-130px)] ${mobileStep === 2 ? 'fixed inset-0 z-[150] lg:relative lg:inset-auto lg:z-10' : 'relative h-[calc(100vh-70px)] z-10'}`}>
                     {calcMode === 'carga' ? renderCargaRightPanel() : renderViajeRightPanel()}
                  </div>
               </div>
@@ -1716,51 +1721,6 @@ export default function App() {
                 <button onClick={handleSaveSettings} className="w-full bg-slate-900 hover:bg-slate-800 text-white py-4 rounded-[1.25rem] font-bold text-[15px] active:scale-95 transition-all shadow-xl shadow-slate-900/20 cursor-pointer">Guardar Preferencias</button>
              </div>
           </div>
-        </div>
-      )}
-
-      {/* MODAL TEXTOS LEGALES (ADSENSE) */}
-      {legalView && (
-        <div className="fixed inset-0 z-[2000] bg-slate-900/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-4 sm:p-0">
-           <div className="bg-white w-full max-w-lg rounded-[2.5rem] shadow-2xl p-6 animate-in slide-in-from-bottom-8 duration-300 mb-4 sm:mb-0 max-h-[85vh] flex flex-col">
-             <div className="flex justify-between items-center mb-6 shrink-0">
-                <h3 className="font-black text-slate-900 flex items-center text-xl">
-                   {legalView === 'about' && <><Info className="w-6 h-6 mr-2 text-blue-600"/> Acerca de Andes Ruta</>}
-                   {legalView === 'privacy' && <><ShieldCheck className="w-6 h-6 mr-2 text-emerald-600"/> Política de Privacidad</>}
-                   {legalView === 'terms' && <><FileText className="w-6 h-6 mr-2 text-purple-600"/> Términos de Uso</>}
-                </h3>
-                <button onClick={() => setLegalView(null)} className="bg-slate-100 p-2 rounded-full hover:bg-slate-200 transition-colors cursor-pointer"><X className="w-5 h-5 text-slate-600"/></button>
-             </div>
-             
-             <div className="overflow-y-auto no-scrollbar pr-2 pb-4 text-sm text-slate-600 space-y-4">
-                {legalView === 'about' && (
-                  <>
-                    <p><b>Andes Ruta</b> es una plataforma independiente y gratuita diseñada para ayudar a los conductores en Chile a tomar decisiones informadas sobre el consumo de combustible.</p>
-                    <p>Nuestra tecnología se conecta directamente a los datos públicos proporcionados por la Comisión Nacional de Energía (CNE), garantizando que los precios mostrados son los oficiales reportados por las propias estaciones de servicio.</p>
-                    <p>Además, integramos algoritmos de enrutamiento avanzados (OpenStreetMap/OSRM) y una base de datos propia de peajes para ofrecer proyecciones de costos de viaje lo más precisas posibles.</p>
-                  </>
-                )}
-                {legalView === 'privacy' && (
-                  <>
-                    <p><b>1. Uso de la Ubicación:</b> Para proporcionar resultados de "Estaciones cerca de mí", Andes Ruta solicita acceso temporal a la ubicación GPS de su dispositivo. Esta información se procesa exclusivamente en su navegador local y <b>nunca es guardada, almacenada ni transmitida</b> a nuestros servidores.</p>
-                    <p><b>2. Datos de Almacenamiento:</b> La aplicación utiliza almacenamiento local (Local Storage) en su navegador para guardar preferencias como el rendimiento de su vehículo y las últimas comunas buscadas, mejorando su experiencia de uso. Estos datos no son rastreables remotamente.</p>
-                    <p><b>3. Anuncios:</b> Utilizamos Google AdSense para mostrar publicidad relevante. Google y sus socios pueden utilizar cookies para mostrar anuncios basados en sus visitas anteriores a este y otros sitios web.</p>
-                  </>
-                )}
-                {legalView === 'terms' && (
-                  <>
-                    <p>Al utilizar Andes Ruta, usted acepta los siguientes términos:</p>
-                    <p><b>1. Precisión de Precios:</b> Los precios son suministrados a través de la API de la CNE. Andes Ruta no se hace responsable por diferencias temporales o errores de digitación cometidos por las bencineras al reportar sus tarifas.</p>
-                    <p><b>2. Cálculo de Peajes (Fase Beta):</b> Las estimaciones de peajes y rutas son puramente referenciales. Factores como horarios punta, tarifas de fin de semana, o desvíos en el trayecto pueden alterar el costo final. Andes Ruta se provee "tal cual", sin garantías comerciales.</p>
-                    <p><b>3. Promociones:</b> Los descuentos exhibidos son recopilaciones informativas de carácter público. Las condiciones finales, topes y vigencias dependen exclusivamente de los bancos y entidades emisoras.</p>
-                  </>
-                )}
-             </div>
-
-             <div className="mt-4 pt-4 border-t border-slate-100 shrink-0">
-                <button onClick={() => setLegalView(null)} className="w-full bg-slate-900 text-white py-4 rounded-[1.25rem] font-bold text-[15px] active:scale-95 transition-transform shadow-xl shadow-slate-900/20 cursor-pointer">Entendido</button>
-             </div>
-           </div>
         </div>
       )}
 
