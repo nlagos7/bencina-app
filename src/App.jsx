@@ -190,18 +190,18 @@ function generateMapHtml(origin, dest, geometry, isRoundTrip, tolls = [], waypoi
   const tollsJs = tolls.map(t => `L.marker([${t.lat}, ${t.lon}], {icon: L.divIcon({className: 'custom-leaflet-icon', iconSize: [20, 20], html: '<div style="background:#f59e0b;width:20px;height:20px;border:2px solid white;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 5px rgba(0,0,0,0.3);"><span style="color:white;font-size:11px;font-weight:900;">$</span></div>'})}).addTo(map).bindPopup("<b>${t.nombre}</b><br>$${t.precio}");`).join('\n');
   const waypointsJs = waypoints.map(wp => `L.marker([${wp.lat}, ${wp.lon}], {icon: L.divIcon({className: 'custom-leaflet-icon', iconSize: [12, 12], html: '<div style="background:#f59e0b;width:12px;height:12px;border:2px solid white;border-radius:50%;box-shadow:0 2px 5px rgba(0,0,0,0.3);"></div>'})}).addTo(map).bindPopup("<b>${wp.mainName}</b>");`).join('\n');
   
-  return `<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" /><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" /><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script><style>body{margin:0;padding:0;background:#e2e8f0;}#map{width:100vw;height:100vh;}.leaflet-control-attribution{display:none!important;} .custom-leaflet-icon { background: transparent; border: none; }</style></head><body><div id="map"></div><script>var map = L.map('map', { zoomControl: false }); L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png').addTo(map); var originCoord=[${origin.lat}, ${origin.lon}]; var destCoord=[${dest.lat}, ${dest.lon}]; L.marker(originCoord, {icon: L.divIcon({className:'custom-leaflet-icon', iconSize:[16,16], html:'<div style="background:#3b82f6;width:16px;height:16px;border:3px solid white;border-radius:50%;box-shadow:0 2px 5px rgba(0,0,0,0.3)"></div>'})}).addTo(map); L.marker(destCoord, {icon: L.divIcon({className:'custom-leaflet-icon', iconSize:[16,16], html:'<div style="background:#ef4444;width:16px;height:16px;border:3px solid white;border-radius:50%;box-shadow:0 2px 5px rgba(0,0,0,0.3)"></div>'})}).addTo(map); ${waypointsJs} var geom = ${geometry ? JSON.stringify(geometry) : 'null'}; 
+  return `<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" /><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" /><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script><style>body{margin:0;padding:0;background:#e2e8f0;width:100%;height:100%;}#map{width:100%;height:100vh;}.leaflet-control-attribution{display:none!important;} .custom-leaflet-icon { background: transparent; border: none; }</style></head><body><div id="map"></div><script>var map = L.map('map', { zoomControl: false }); L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png').addTo(map); var originCoord=[${origin.lat}, ${origin.lon}]; var destCoord=[${dest.lat}, ${dest.lon}]; L.marker(originCoord, {icon: L.divIcon({className:'custom-leaflet-icon', iconSize:[16,16], html:'<div style="background:#3b82f6;width:16px;height:16px;border:3px solid white;border-radius:50%;box-shadow:0 2px 5px rgba(0,0,0,0.3)"></div>'})}).addTo(map); L.marker(destCoord, {icon: L.divIcon({className:'custom-leaflet-icon', iconSize:[16,16], html:'<div style="background:#ef4444;width:16px;height:16px;border:3px solid white;border-radius:50%;box-shadow:0 2px 5px rgba(0,0,0,0.3)"></div>'})}).addTo(map); ${waypointsJs} var geom = ${geometry ? JSON.stringify(geometry) : 'null'}; 
   setTimeout(function() {
       if(geom && geom.coordinates && geom.coordinates.length > 1){ 
          var coords = geom.coordinates.map(function(c){return [c[1], c[0]];}); 
          var poly = L.polyline(coords, {color: '#3b82f6', weight: 4, opacity: 0.9}).addTo(map); 
          if (poly.getBounds().isValid()) {
-            map.fitBounds(poly.getBounds(), {paddingTopLeft: [50, 50], paddingBottomRight: [50, 250]});
+            map.fitBounds(poly.getBounds(), {padding: [50, 50]});
          }
       } else { 
          var b = L.latLngBounds([originCoord, destCoord]);
          if (b.isValid()) {
-            map.fitBounds(b, {paddingTopLeft: [50, 50], paddingBottomRight: [50, 250]});
+            map.fitBounds(b, {padding: [50, 50]});
          }
       } 
   }, 100);
@@ -212,7 +212,11 @@ function generateStationsMapHtml(stations, selectedStation, userLoc, showRouteLi
   if (!stations || stations.length === 0) return "";
   const selectedId = selectedStation?.id;
   
-  const markersJs = stations.map((s) => {
+  const stationsToRender = (showRouteLine && selectedStation && userLoc) 
+      ? stations.filter(s => s.id === selectedId) 
+      : stations;
+
+  const markersJs = stationsToRender.map((s) => {
       const isSelected = selectedStation && s.id === selectedId;
       const baseColor = s.isOutdated ? "#94a3b8" : "#0f172a";
       const color = isSelected ? "#3b82f6" : baseColor;
@@ -239,31 +243,25 @@ function generateStationsMapHtml(stations, selectedStation, userLoc, showRouteLi
   if (showRouteLine && selectedStation && userLoc) {
      mapViewJs = `
        var r = L.polyline([[${userLoc.lat}, ${userLoc.lon}], [${selectedStation.lat}, ${selectedStation.lon}]], {color:'#3b82f6', weight:3, dashArray:'6,8'}).addTo(map); 
-       var paddingBottom = window.innerWidth >= 1024 ? window.innerHeight * 0.45 : window.innerHeight * 0.60;
-       map.fitBounds(r.getBounds(), {paddingTopLeft: [50, 50], paddingBottomRight: [50, paddingBottom + 50]});
+       map.fitBounds(r.getBounds(), {padding: [50, 50]});
      `;
   } else if (selectedStation) {
      mapViewJs = `
        var target = L.latLng(${selectedStation.lat}, ${selectedStation.lon});
-       var zoom = 14;
-       var targetPoint = map.project(target, zoom);
-       var paddingBottom = window.innerWidth >= 1024 ? window.innerHeight * 0.45 : window.innerHeight * 0.60; 
-       targetPoint.y += (paddingBottom / 2); 
-       map.setView(map.unproject(targetPoint, zoom), zoom);
+       map.setView(target, 14);
      `;
   } else {
      mapViewJs = `
        setTimeout(function() {
           var b = L.latLngBounds([${stations.map(s=>`[${s.lat},${s.lon}]`).join(",")}]);
-          var paddingBottom = window.innerWidth >= 1024 ? window.innerHeight * 0.45 : window.innerHeight * 0.60;
           if(b.isValid()) {
-              map.fitBounds(b, {paddingTopLeft: [50, 50], paddingBottomRight: [50, paddingBottom]});
+              map.fitBounds(b, {padding: [50, 50]});
           }
        }, 100);
      `;
   }
 
-  return `<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" /><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" /><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script><style>body{margin:0;padding:0;background:#e2e8f0;}#map{width:100vw;height:100vh;}.leaflet-control-attribution{display:none!important;} .custom-leaflet-icon { background: transparent; border: none; } @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7); } 70% { box-shadow: 0 0 0 15px rgba(59, 130, 246, 0); } 100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); } }</style></head><body><div id="map"></div><script>var map = L.map('map', { zoomControl: false }); L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png').addTo(map); ${markersJs} ${userMarkerJs} ${mapViewJs}</script></body></html>`;
+  return `<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" /><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" /><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script><style>body{margin:0;padding:0;background:#e2e8f0;width:100%;height:100%;}#map{width:100%;height:100vh;}.leaflet-control-attribution{display:none!important;} .custom-leaflet-icon { background: transparent; border: none; } @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7); } 70% { box-shadow: 0 0 0 15px rgba(59, 130, 246, 0); } 100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); } }</style></head><body><div id="map"></div><script>var map = L.map('map', { zoomControl: false }); L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png').addTo(map); ${markersJs} ${userMarkerJs} ${mapViewJs}</script></body></html>`;
 }
 
 // =====================================================================
@@ -781,6 +779,7 @@ export default function App() {
 
   let pricePerLiter = 0;
   if (calcMode === "viaje" && originCity && destCity) {
+    // Buscar estaciones válidas solo en el origen
     const regionStations = cneStations.filter((s) => s.regionId === originCity.regionId && getBestPrice(s.precios[fuelType]) > 0);
     if (regionStations.length > 0) pricePerLiter = Math.round(regionStations.reduce((acc, s) => acc + getBestPrice(s.precios[fuelType]), 0) / regionStations.length);
   }
@@ -998,22 +997,38 @@ export default function App() {
 
   const renderFooterContentViaje = () => (
     <React.Fragment>
-      <div className="flex justify-between items-end mb-5">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-5 gap-4">
         <div className="flex flex-col">
           <span className="text-[13px] font-bold text-slate-500 uppercase tracking-wider mb-1">Costo Total Viaje</span>
           <span className="text-[2.5rem] font-black text-slate-900 tracking-tight leading-none">{formatCLP(resultValue)}</span>
           {parseFloat(distanceKm) > 0 && (
-             <div className="flex items-center gap-1 mt-2 text-blue-600 bg-blue-50 w-fit px-2.5 py-1.5 rounded-lg border border-blue-100">
+             <div className="flex items-center gap-1 mt-3 text-blue-600 bg-blue-50 w-fit px-2.5 py-1.5 rounded-lg border border-blue-100">
                  <Route className="w-3.5 h-3.5" />
                  <span className="text-[11px] font-bold">{displayDistanceKm} km total {isRoundTrip ? '(Ida y vuelta)' : ''}</span>
              </div>
           )}
         </div>
         {resultValue > 0 && (
-          <div className="flex flex-col items-end gap-1.5 pb-1">
-            <span className="text-[11px] font-bold text-slate-400 flex items-center bg-slate-50 px-2 py-0.5 rounded-md"><DollarSign className="w-3 h-3 mr-0.5 text-slate-400" /> Ref: {formatCLP(pricePerLiter)}/L</span>
-            <span className="text-[11px] font-bold text-slate-400 flex items-center bg-slate-50 px-2 py-0.5 rounded-md"><Droplets className="w-3 h-3 mr-1 text-slate-400" /> {formatCLP(bencinaTotal)}</span>
-            <span className="text-[11px] font-bold text-slate-400 flex items-center bg-slate-50 px-2 py-0.5 rounded-md"><Ticket className="w-3 h-3 mr-1 text-slate-400" /> {includeTolls ? formatCLP(peajeTotal) : 'Omitidos'}</span>
+          <div className="flex flex-col gap-2 w-full md:w-auto mt-2 md:mt-0 shrink-0">
+             <div className="flex items-center justify-between gap-3 bg-white p-2.5 rounded-xl border border-slate-200 shadow-sm w-full md:w-fit md:min-w-[280px]">
+                 <div className="flex items-center gap-2">
+                     <div className="bg-blue-100 p-1.5 rounded-lg"><Droplets className="w-4 h-4 text-blue-600" /></div>
+                     <span className="text-[12px] font-bold text-slate-600">Combustible ({fuelType === "diesel" ? "Diesel" : fuelType === "parafina" ? "Paraf" : `${fuelType} Oct`})</span>
+                 </div>
+                 <div className="flex items-center gap-1.5">
+                     <span className="text-[13px] font-black text-slate-900">{formatCLP(bencinaTotal)}</span>
+                     <span className="text-[9px] text-slate-400 font-semibold">({formatCLP(pricePerLiter)}/L)</span>
+                 </div>
+             </div>
+             <div className="flex items-center justify-between gap-3 bg-white p-2.5 rounded-xl border border-slate-200 shadow-sm w-full md:w-fit md:min-w-[280px]">
+                 <div className="flex items-center gap-2">
+                     <div className="bg-amber-100 p-1.5 rounded-lg"><Ticket className="w-4 h-4 text-amber-600" /></div>
+                     <span className="text-[12px] font-bold text-slate-600">Peajes y Autopistas</span>
+                 </div>
+                 <div className="flex items-center gap-1.5">
+                     <span className="text-[13px] font-black text-slate-900">{includeTolls ? formatCLP(peajeTotal) : 'Omitidos'}</span>
+                 </div>
+             </div>
           </div>
         )}
       </div>
@@ -1034,10 +1049,10 @@ export default function App() {
     }
 
     return (
-      <div className="w-full h-full flex flex-col lg:flex-row relative bg-slate-200 lg:rounded-[2rem] lg:shadow-xl lg:border-[6px] lg:border-white lg:overflow-hidden">
+      <div className="w-full h-full flex flex-col relative bg-slate-200 lg:rounded-[2rem] lg:shadow-xl lg:border-[6px] lg:border-white lg:overflow-hidden">
         
         {/* Botón volver Mobile (Aparece en modo mapa) */}
-        <div className="lg:hidden absolute top-4 left-4 z-20">
+        <div className="lg:hidden absolute top-4 left-4 z-40">
             <button onClick={() => {
                 setMobileStep(1);
                 setCurrentStation(null);
@@ -1047,13 +1062,13 @@ export default function App() {
         </div>
 
         {/* MAPA PRINCIPAL */}
-        <div className="absolute inset-0 z-0">
-           {stationsMapUrl ? <iframe key={`map-${stationsMapUrl}-${mobileStep}`} src={stationsMapUrl} title="Mapa Estaciones" className="w-full h-full" style={{ border: 0 }} sandbox="allow-scripts allow-same-origin" /> : <div className="w-full h-full flex items-center justify-center text-slate-400"><Loader2 className="w-8 h-8 animate-spin" /></div>}
+        <div className="flex-1 w-full relative z-0 min-h-0">
+           {stationsMapUrl ? <iframe key={`map-${stationsMapUrl}-${mobileStep}`} src={stationsMapUrl} title="Mapa Estaciones" className="absolute inset-0 w-full h-full" style={{ border: 0 }} sandbox="allow-scripts allow-same-origin" /> : <div className="absolute inset-0 flex items-center justify-center text-slate-400"><Loader2 className="w-8 h-8 animate-spin" /></div>}
         </div>
         
-        {/* PANEL DETALLE ESTACION (BOTTOM SHEET MÓVIL Y ESCRITORIO - 50/50) */}
+        {/* PANEL DETALLE ESTACION (ADAPTABLE AL CONTENIDO) */}
         {currentStation && !showCalcModal && (
-           <div className="absolute bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xl p-5 sm:p-6 shadow-[0_-15px_40px_rgba(0,0,0,0.12)] border-t border-slate-200 z-30 flex flex-col transition-all duration-300">
+           <div className="w-full bg-white/95 backdrop-blur-xl p-5 sm:p-6 shadow-[0_-15px_40px_rgba(0,0,0,0.12)] border-t border-slate-200 z-30 flex flex-col shrink-0 transition-all duration-300">
 
               <div className="flex flex-col flex-1 overflow-hidden lg:max-w-3xl lg:mx-auto w-full">
                  <div className="flex justify-between items-start mb-4 shrink-0">
@@ -1081,7 +1096,7 @@ export default function App() {
                       <div className="mb-4 mt-2 bg-blue-50 p-3 rounded-xl border border-blue-100 flex items-start gap-2.5 shadow-sm">
                           <Info className="w-5 h-5 shrink-0 text-blue-500 mt-0.5" />
                           <span className="text-[11px] text-slate-700 leading-snug">
-                            Esta estación tiene precios diferenciados. <b>Auto:</b> Autoservicio (tú cargas, más barato). <b>Asis:</b> Asistido.
+                            Esta estación tiene precios diferenciados. <b>Auto:</b> Autoservicio (tú cargas, más barato). <b>Asis:</b> Asistido (un atendedor realiza la carga).
                           </span>
                       </div>
                     )}
@@ -1131,8 +1146,7 @@ export default function App() {
         )}
 
         {currentStation && showCalcModal && (
-           <div className="absolute bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xl lg:rounded-b-[1rem] rounded-t-[2.5rem] lg:rounded-t-[2rem] p-5 sm:p-6 shadow-[0_-15px_40px_rgba(0,0,0,0.12)] border-t border-slate-200 z-30 flex flex-col transition-all duration-300">
-              <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-3 shrink-0 lg:hidden"></div>
+           <div className="w-full bg-white/95 backdrop-blur-xl p-5 sm:p-6 shadow-[0_-15px_40px_rgba(0,0,0,0.12)] border-t border-slate-200 z-30 flex flex-col shrink-0 transition-all duration-300">
               
               <div className="flex flex-col flex-1 overflow-hidden lg:max-w-2xl lg:mx-auto w-full">
                  <div className="flex justify-between items-center mb-3 shrink-0 px-1">
@@ -1178,25 +1192,27 @@ export default function App() {
     }
 
     return (
-      <div className="flex-1 w-full h-full relative lg:rounded-[2.5rem] lg:shadow-xl lg:border-[8px] lg:border-white overflow-hidden bg-slate-200 lg:h-[calc(100vh-140px)] lg:sticky lg:top-[100px]">
+      <div className="flex-1 w-full h-full flex flex-col relative lg:rounded-[2.5rem] lg:shadow-xl lg:border-[8px] lg:border-white overflow-hidden bg-slate-200 lg:h-[calc(100vh-140px)] lg:sticky lg:top-[100px]">
         
-        <div className="lg:hidden absolute top-4 left-4 z-20">
+        <div className="lg:hidden absolute top-4 left-4 z-40">
             <button onClick={() => setMobileStep(1)} className="bg-white/90 backdrop-blur-md p-2.5 rounded-full shadow-lg border border-slate-100 text-slate-800 flex items-center justify-center cursor-pointer">
               <ChevronLeft className="w-6 h-6"/>
             </button>
         </div>
 
         {isCalculatingRoute ? (
-          <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-400 bg-slate-100 z-10">
+          <div className="flex-1 flex flex-col items-center justify-center text-slate-400 bg-slate-100 z-10 w-full min-h-0">
             <MapIcon className="w-8 h-8 mb-2 opacity-50" />
             <span className="text-xs font-semibold">Trazando ruta...</span>
           </div>
         ) : (
           <>
-            <iframe key={`viaje-map-${mapUrl}-${mobileStep}`} src={mapUrl} title="Mapa de la ruta" className="absolute inset-0 w-full h-full" style={{ border: 0 }} sandbox="allow-scripts allow-same-origin" />
-            
-            <div className="absolute bottom-0 left-0 right-0 z-30 flex flex-col pointer-events-none">
-               <div className="flex justify-center mb-4">
+            {/* MAPA */}
+            <div className="flex-1 w-full relative z-0 min-h-0">
+               <iframe key={`viaje-map-${mapUrl}-${mobileStep}`} src={mapUrl} title="Mapa de la ruta" className="absolute inset-0 w-full h-full" style={{ border: 0 }} sandbox="allow-scripts allow-same-origin" />
+               
+               {/* Toggle Ida y Vuelta Flotante sobre el mapa */}
+               <div className="absolute bottom-4 left-0 right-0 flex justify-center z-20 pointer-events-none">
                   <div className="pointer-events-auto bg-white/95 backdrop-blur-md px-4 py-2.5 rounded-full shadow-lg flex items-center gap-3 border border-slate-100">
                      <span className="text-[11px] font-black text-slate-800 uppercase tracking-wider select-none">Ida y vuelta</span>
                      <button onClick={() => setIsRoundTrip(!isRoundTrip)} className={`w-11 h-6 rounded-full relative transition-colors cursor-pointer shadow-inner border border-slate-200/50 ${isRoundTrip ? 'bg-blue-600' : 'bg-slate-200'}`}>
@@ -1204,10 +1220,11 @@ export default function App() {
                      </button>
                   </div>
                </div>
-               <div className="bg-white/95 backdrop-blur-xl lg:rounded-b-[2rem] rounded-t-[2.5rem] lg:rounded-t-[2rem] p-6 shadow-[0_-20px_40px_rgba(0,0,0,0.1)] pb-8 lg:pb-6 pointer-events-auto border-t border-slate-200">
-                  <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-5 shrink-0 lg:hidden"></div>
-                  {renderFooterContentViaje()}
-               </div>
+            </div>
+            
+            {/* CARD RESUMEN VIAJE (ADAPTABLE) */}
+            <div className="w-full bg-white/95 backdrop-blur-xl p-6 shadow-[0_-20px_40px_rgba(0,0,0,0.12)] pb-8 lg:pb-6 border-t border-slate-200 shrink-0 z-30">
+               {renderFooterContentViaje()}
             </div>
           </>
         )}
@@ -1229,9 +1246,6 @@ export default function App() {
           </div>
           
           <div className="flex flex-wrap justify-center gap-6">
-             <button onClick={() => setLegalView('about')} className="text-xs font-black text-slate-500 hover:text-blue-600 uppercase tracking-wider transition-colors cursor-pointer">Acerca de</button>
-             <button onClick={() => setLegalView('privacy')} className="text-xs font-black text-slate-500 hover:text-blue-600 uppercase tracking-wider transition-colors cursor-pointer">Privacidad</button>
-             <button onClick={() => setLegalView('terms')} className="text-xs font-black text-slate-500 hover:text-blue-600 uppercase tracking-wider transition-colors cursor-pointer">Términos de uso</button>
              <a href="mailto:contacto@andesruta.com" className="text-xs font-black text-slate-500 hover:text-blue-600 uppercase tracking-wider transition-colors cursor-pointer">Contacto</a>
           </div>
        </div>
@@ -1251,7 +1265,7 @@ export default function App() {
     <div className="bg-slate-50 min-h-screen flex flex-col font-sans text-slate-800">
       
       {/* HEADER WEB */}
-      <header className="h-[70px] shrink-0 flex bg-white border-b border-slate-200 sticky top-0 z-[100] px-4 lg:px-8 shadow-sm items-center justify-between w-full">
+      <header className={`h-[70px] shrink-0 bg-white border-b border-slate-200 sticky top-0 z-[100] px-4 lg:px-8 shadow-sm items-center justify-between w-full ${mobileStep === 2 ? 'hidden lg:flex' : 'flex'}`}>
          <div className="max-w-7xl mx-auto flex items-center justify-between w-full">
            <div className="flex items-center gap-2 lg:gap-3">
               <div className="bg-blue-600 p-2 lg:p-2.5 rounded-xl shadow-md shadow-blue-200"><Fuel className="w-5 h-5 lg:w-6 lg:h-6 text-white" /></div>
@@ -1301,7 +1315,7 @@ export default function App() {
           
         {/* PANEL DERECHO (MAPA Y RESULTADOS STICKY) */}
         <div className={`flex-1 w-full ${mobileStep === 1 ? 'hidden lg:block' : 'block'}`}>
-           <div className={`w-full z-10 flex flex-col lg:sticky lg:top-[90px] lg:h-[calc(100vh-130px)] ${mobileStep === 2 ? 'fixed top-[70px] bottom-0 left-0 right-0 lg:relative lg:top-auto lg:bottom-auto lg:left-auto lg:right-auto' : 'relative h-[calc(100vh-70px)]'}`}>
+           <div className={`w-full z-10 flex flex-col lg:sticky lg:top-[90px] lg:h-[calc(100vh-130px)] ${mobileStep === 2 ? 'fixed inset-0 z-[150] lg:relative lg:inset-auto lg:z-10' : 'relative h-[calc(100vh-70px)] z-10'}`}>
               {calcMode === 'carga' ? renderCargaRightPanel() : renderViajeRightPanel()}
            </div>
         </div>
@@ -1366,7 +1380,7 @@ export default function App() {
                       <div className="flex justify-between items-center">
                          <span className="text-sm font-bold text-slate-700">Combustible</span>
                          <select className="bg-white px-3 py-2 rounded-xl border border-slate-200 font-black text-slate-900 outline-none cursor-pointer shadow-sm" value={tempFuel} onChange={(e) => setTempFuel(e.target.value)}>
-                            <option value="93">93 oct</option><option value="95">95 oct</option><option value="97">97 oct</option><option value="diesel">Diesel</option>
+                            <option value="93">93 oct</option><option value="95">95 oct</option><option value="97">97 oct</option><option value="diesel">Diesel</option><option value="parafina">Parafina</option>
                          </select>
                       </div>
                    </div>
@@ -1399,51 +1413,6 @@ export default function App() {
                 <button onClick={handleSaveSettings} className="w-full bg-slate-900 hover:bg-slate-800 text-white py-4 rounded-[1.25rem] font-bold text-[15px] active:scale-95 transition-all shadow-xl shadow-slate-900/20 cursor-pointer">Guardar Preferencias</button>
              </div>
           </div>
-        </div>
-      )}
-
-      {/* MODAL TEXTOS LEGALES (ADSENSE) */}
-      {legalView && (
-        <div className="fixed inset-0 z-[2000] bg-slate-900/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-4 sm:p-0">
-           <div className="bg-white w-full max-w-lg rounded-[2.5rem] shadow-2xl p-6 animate-in slide-in-from-bottom-8 duration-300 mb-4 sm:mb-0 max-h-[85vh] flex flex-col">
-             <div className="flex justify-between items-center mb-6 shrink-0">
-                <h3 className="font-black text-slate-900 flex items-center text-xl">
-                   {legalView === 'about' && <><Info className="w-6 h-6 mr-2 text-blue-600"/> Acerca de Andes Ruta</>}
-                   {legalView === 'privacy' && <><ShieldCheck className="w-6 h-6 mr-2 text-emerald-600"/> Política de Privacidad</>}
-                   {legalView === 'terms' && <><FileText className="w-6 h-6 mr-2 text-purple-600"/> Términos de Uso</>}
-                </h3>
-                <button onClick={() => setLegalView(null)} className="bg-slate-100 p-2 rounded-full hover:bg-slate-200 transition-colors cursor-pointer"><X className="w-5 h-5 text-slate-600"/></button>
-             </div>
-             
-             <div className="overflow-y-auto no-scrollbar pr-2 pb-4 text-sm text-slate-600 space-y-4">
-                {legalView === 'about' && (
-                  <>
-                    <p><b>Andes Ruta</b> es una plataforma independiente y gratuita diseñada para ayudar a los conductores en Chile a tomar decisiones informadas sobre el consumo de combustible.</p>
-                    <p>Nuestra tecnología se conecta directamente a los datos públicos proporcionados por la Comisión Nacional de Energía (CNE), garantizando que los precios mostrados son los oficiales reportados por las propias estaciones de servicio.</p>
-                    <p>Además, integramos algoritmos de enrutamiento avanzados (OpenStreetMap/OSRM) y una base de datos propia de peajes para ofrecer proyecciones de costos de viaje lo más precisas posibles.</p>
-                  </>
-                )}
-                {legalView === 'privacy' && (
-                  <>
-                    <p><b>1. Uso de la Ubicación:</b> Para proporcionar resultados de "Estaciones cerca de mí", Andes Ruta solicita acceso temporal a la ubicación GPS de su dispositivo. Esta información se procesa exclusivamente en su navegador local y <b>nunca es guardada, almacenada ni transmitida</b> a nuestros servidores.</p>
-                    <p><b>2. Datos de Almacenamiento:</b> La aplicación utiliza almacenamiento local (Local Storage) en su navegador para guardar preferencias como el rendimiento de su vehículo y las últimas comunas buscadas, mejorando su experiencia de uso. Estos datos no son rastreables remotamente.</p>
-                    <p><b>3. Anuncios:</b> Utilizamos Google AdSense para mostrar publicidad relevante. Google y sus socios pueden utilizar cookies para mostrar anuncios basados en sus visitas anteriores a este y otros sitios web.</p>
-                  </>
-                )}
-                {legalView === 'terms' && (
-                  <>
-                    <p>Al utilizar Andes Ruta, usted acepta los siguientes términos:</p>
-                    <p><b>1. Precisión de Precios:</b> Los precios son suministrados a través de la API de la CNE. Andes Ruta no se hace responsable por diferencias temporales o errores de digitación cometidos por las bencineras al reportar sus tarifas.</p>
-                    <p><b>2. Cálculo de Peajes (Fase Beta):</b> Las estimaciones de peajes y rutas son puramente referenciales. Factores como horarios punta, tarifas de fin de semana, o desvíos en el trayecto pueden alterar el costo final. Andes Ruta se provee "tal cual", sin garantías comerciales.</p>
-                    <p><b>3. Promociones:</b> Los descuentos exhibidos son recopilaciones informativas de carácter público. Las condiciones finales, topes y vigencias dependen exclusivamente de los bancos y entidades emisoras.</p>
-                  </>
-                )}
-             </div>
-
-             <div className="mt-4 pt-4 border-t border-slate-100 shrink-0">
-                <button onClick={() => setLegalView(null)} className="w-full bg-slate-900 text-white py-4 rounded-[1.25rem] font-bold text-[15px] active:scale-95 transition-transform shadow-xl shadow-slate-900/20 cursor-pointer">Entendido</button>
-             </div>
-           </div>
         </div>
       )}
 
