@@ -1058,9 +1058,7 @@ export default function App() {
         
         {/* PANEL DETALLE ESTACION (BOTTOM SHEET MÓVIL Y ESCRITORIO - 60/40) */}
         {currentStation && !showCalcModal && (
-           <div className="absolute bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xl lg:rounded-b-[1rem] rounded-t-[2.5rem] lg:rounded-t-[2rem] p-5 sm:p-6 shadow-[0_-15px_40px_rgba(0,0,0,0.12)] border-t border-slate-200 z-30 flex flex-col h-[60%] lg:h-[45%] transition-all duration-300">
-              {/* Pestañita Drag Handle solo visible en mobile */}
-              <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-3 shrink-0 lg:hidden"></div>
+           <div className="absolute bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xl p-5 sm:p-6 shadow-[0_-15px_40px_rgba(0,0,0,0.12)] border-t border-slate-200 z-30 flex flex-col transition-all duration-300">
 
               <div className="flex flex-col flex-1 overflow-hidden lg:max-w-3xl lg:mx-auto w-full">
                  <div className="flex justify-between items-start mb-4 shrink-0">
@@ -1096,7 +1094,6 @@ export default function App() {
                              <div className="mt-3 text-[10px] text-slate-500 flex items-start gap-1.5 leading-tight px-2">
                                  <Info className="w-4 h-4 shrink-0 text-blue-500" />
                                  <span>
-                                   <b>Autoservicio:</b> Tú cargas el combustible (más barato). <b>Asistido:</b> Un atendedor realiza la carga. 
                                    {diffBase > 0 ? <span className="text-blue-600 font-bold block mt-1">Esta estación ofrece un descuento de ${diffBase} por litro en modalidad autoservicio.</span> : ''}
                                  </span>
                              </div>
@@ -1122,7 +1119,7 @@ export default function App() {
                     </div>
                  </div>
 
-                 <div className="flex gap-2 pt-3 border-t border-slate-100 mt-1 shrink-0 pb-6 lg:pb-0">
+                 <div className="flex gap-2 pt-3 border-t border-slate-100 mt-1 shrink-0 lg:pb-0">
                     <button onClick={() => { setCalcFuelType(fuelType); setShowCalcModal(true); }} className="flex-1 bg-slate-900 text-white rounded-xl py-3.5 text-[13px] font-extrabold flex items-center justify-center gap-1.5 shadow-xl shadow-slate-900/20 active:scale-95 transition-transform"><Calculator className="w-4 h-4" /> Calcular</button>
                     <a href={`https://www.google.com/maps/dir/?api=1&destination=${currentStation.lat},${currentStation.lon}`} target="_blank" rel="noopener noreferrer" className="flex-1 bg-blue-600 text-white rounded-xl py-3.5 text-[13px] font-extrabold flex items-center justify-center gap-1.5 shadow-xl shadow-blue-600/20 active:scale-95 transition-transform"><MapPin className="w-3.5 h-3.5" /> Llegar</a>
                  </div>
