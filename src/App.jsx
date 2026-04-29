@@ -3,14 +3,14 @@ import {
   Fuel, MapPin, DollarSign, Droplets, ChevronDown, Loader2, AlertCircle,
   ShieldCheck, Route, ArrowRight, Map as MapIcon, Search, Check, X,
   Clock, TrendingUp, Calculator, ChevronLeft, Ticket, Settings, ArrowUpDown,
-  Car, Info, Tag, Plus, ChevronUp, FileText, ExternalLink, Mail
+  Car, Info, Tag, Plus, ChevronUp, FileText, ExternalLink, Mail, Menu, Calendar, ChevronRight, Home
 } from "lucide-react";
 
 // =====================================================================
 // 🛑 CONFIGURACIÓN DE RUTAS Y API (Vía Proxy Local / Vercel)
 // =====================================================================
-const RUTA_LOGIN = "/api-cne/api/login";
-const RUTA_ESTACIONES = "/api-cne/api/v4/estaciones";
+const RUTA_LOGIN = "https://api.cne.cl/api/login";
+const RUTA_ESTACIONES = "https://api.cne.cl/api/v4/estaciones";
 
 const REGION_MAP = {
   arica: "XV", parinacota: "XV", tarapacá: "I", tarapaca: "I",
@@ -32,24 +32,30 @@ const normalizeString = (str) => str ? str.normalize("NFD").replace(/[\u0300-\u0
 // =========================
 const AdPlaceholder = ({ className = "" }) => {
   const adRef = useRef(false);
+  const containerRef = useRef(null);
 
   useEffect(() => {
-    if (!adRef.current) {
-      try {
-        if (window && typeof window !== "undefined") {
-          (window.adsbygoogle = window.adsbygoogle || []).push({});
+    let timeoutId;
+    if (!adRef.current && containerRef.current) {
+      // Retraso ligero para asegurar que el contenedor tenga dimensiones calculadas
+      timeoutId = setTimeout(() => {
+        try {
+          if (window && typeof window !== "undefined" && containerRef.current.offsetWidth > 0) {
+            (window.adsbygoogle = window.adsbygoogle || []).push({});
+          }
+        } catch (e) {
+          console.warn("AdSense:", e.message);
         }
-      } catch (e) {
-        console.warn("AdSense:", e.message);
-      }
+      }, 500);
       adRef.current = true;
     }
+    return () => clearTimeout(timeoutId);
   }, []);
 
   return (
-    <div className={`w-full bg-slate-50 border border-slate-100 rounded-[1.5rem] flex flex-col items-center justify-center text-slate-400 p-2 shadow-sm min-h-[100px] overflow-hidden ${className}`}>
+    <div ref={containerRef} className={`w-full bg-slate-50 border border-slate-100 rounded-[1.5rem] flex flex-col items-center justify-center text-slate-400 p-2 shadow-sm min-h-[100px] overflow-hidden ${className}`}>
       <ins className="adsbygoogle"
-           style={{ display: "block", width: "100%", textAlign: "center" }}
+           style={{ display: "block", width: "100%", minWidth: "250px", textAlign: "center" }}
            data-ad-client="ca-pub-6243319897431930"
            data-ad-format="auto"
            data-full-width-responsive="true"></ins>
@@ -122,6 +128,87 @@ const PEAJES_DB = [
   { id: "p_buin_tag", nombre: "TAG Buin", lat: -33.69552, lon: -70.72364, precio: 840, tipo: "tag" },
   { id: "t_vespucio_norte", nombre: "TAG Vespucio Norte", lat: -33.370, lon: -70.680, precio: 1800, tipo: "tag" },
   { id: "t_nororiente", nombre: "TAG Nororiente", lat: -33.320, lon: -70.600, precio: 3000, tipo: "tag" }
+];
+
+const BLOG_POSTS = [
+  { 
+    id: 1, 
+    title: "Ruta de los 7 Lagos: Una maravilla oculta en el sur", 
+    category: "Rutas", 
+    date: "12 May 2026", 
+    excerpt: "Prepárate para un recorrido espectacular. Te contamos cuánta bencina necesitas, dónde cargar y los peajes clave.", 
+    image: "https://picsum.photos/id/1018/800/400",
+    content: [
+      "La Ruta de los Siete Lagos en la Región de Los Ríos es uno de los destinos más hermosos que ofrece el sur de Chile. Este recorrido te lleva a través de paisajes cordilleranos, bosques milenarios y, por supuesto, lagos de aguas cristalinas como el Panguipulli, Calafquén, Riñihue, Pirihueico, Pellaifa, Neltume y Pullinque.",
+      "Para realizar esta ruta con tranquilidad, te recomendamos planificar bien tus recargas de combustible. Si viajas desde el norte, llenar el estanque en Temuco o Lanco suele ser la mejor opción, ya que las estaciones ubicadas más hacia la cordillera tienden a incrementar su valor en unos $40 a $50 pesos por litro debido al costo logístico de transporte.",
+      "Recuerda también revisar la presión de tus neumáticos. Gran parte de esta ruta cuenta con tramos de ripio que requieren una tracción óptima. Un neumático bien calibrado no solo te da mayor seguridad, sino que también mejora el rendimiento de tu combustible en hasta un 3%."
+    ]
+  },
+  { 
+    id: 2, 
+    title: "¿Por qué rinde menos tu estanque en invierno?", 
+    category: "Consejos", 
+    date: "05 May 2026", 
+    excerpt: "Las bajas temperaturas afectan la eficiencia de tu motor. Aquí te dejamos 5 consejos clave para optimizar cada gota.", 
+    image: "https://picsum.photos/id/1036/800/400",
+    content: [
+      "Es un fenómeno que muchos conductores chilenos notan entre junio y agosto: llenan el estanque, pero los kilómetros recorridos parecen disminuir. Esto no es tu imaginación, es física y termodinámica pura aplicada a tu motor.",
+      "En invierno, el aceite del motor es más denso y espeso debido a las bajas temperaturas, lo que genera una mayor fricción interna durante los primeros minutos de marcha. Además, el aire frío es más denso, por lo que la computadora de tu auto inyecta más combustible para mantener la mezcla correcta.",
+      "¿Cómo evitar perder dinero? Primero, evita calentar el auto estacionado por más de 30 segundos; la mejor forma de calentar un motor moderno es conduciendo suavemente. Segundo, el uso excesivo del desempañador y la calefacción requiere energía eléctrica que, en última instancia, proviene de la quema de gasolina."
+    ]
+  },
+  { 
+    id: 3, 
+    title: "Actualización MEPCO: ¿Qué esperar este jueves?", 
+    category: "Noticias", 
+    date: "28 Abr 2026", 
+    excerpt: "Analizamos las proyecciones del precio internacional y te decimos si conviene cargar el estanque hoy o esperar.", 
+    image: "https://picsum.photos/id/1073/800/400",
+    content: [
+      "El Mecanismo de Estabilización de Precios de los Combustibles (MEPCO) es el sistema que regula las bruscas fluctuaciones del mercado internacional para que no golpeen de un día para otro a los consumidores chilenos.",
+      "De acuerdo a la legislación vigente, los precios de los combustibles en Chile se actualizan cada tres semanas. Este jueves corresponde una nueva fijación tarifaria por parte de ENAP. Observando el valor del dólar en las últimas semanas y el barril de Brent, los expertos proyectan una tendencia al alza.",
+      "Nuestra recomendación en Andes Ruta: Si tu estanque está por debajo de la mitad, te aconsejamos llenarlo antes del miércoles por la noche. Las proyecciones sugieren un aumento tope de $32 pesos por litro en las gasolinas de 93 y 97 octanos."
+    ]
+  },
+  { 
+    id: 4, 
+    title: "Nuevas estaciones de servicio con descuentos directos", 
+    category: "Ahorro", 
+    date: "20 Abr 2026", 
+    excerpt: "Varias comunas han inaugurado nuevas sucursales que traen promociones agresivas. Revisa el listado completo.", 
+    image: "https://picsum.photos/id/1043/800/400",
+    content: [
+      "La competencia en el mercado minorista de combustibles en Chile se está intensificando con la llegada de nuevas marcas y la modernización de las ya existentes, lo cual es una excelente noticia para tu bolsillo.",
+      "Empresas como Aramco (que recientemente adquirió la licencia de Petrobras en el país) están lanzando fuertes campañas de fidelización. Pagar a través de billeteras digitales como Tenpo, Mach, o utilizando tarjetas específicas en ciertos días de la semana, puede representar un descuento real de hasta $150 pesos por litro.",
+      "Además, la modalidad de 'Autoservicio' (donde el cliente realiza la carga) se está expandiendo rápidamente. Utilizar Andes Ruta te permite filtrar estas estaciones, ya que suelen tener un precio base de tótem entre $10 y $20 más barato que el precio asistido tradicional."
+    ]
+  },
+  { 
+    id: 5, 
+    title: "Viaje a la costa: Comparativa de precios por Ruta 68", 
+    category: "Viajes", 
+    date: "15 Abr 2026", 
+    excerpt: "Si vas de Santiago a Viña del Mar, te mostramos exactamente dónde cargar para que el viaje te salga más barato.", 
+    image: "https://picsum.photos/id/1044/800/400",
+    content: [
+      "El trayecto a través de la Ruta 68 es uno de los más transitados del país. Ya sea por trabajo o por una escapada de fin de semana, saber dónde cargar combustible puede marcar una diferencia en tu presupuesto.",
+      "Históricamente, las bencineras ubicadas en las grandes autopistas urbanas de salida (como Costanera Norte o Vespucio) y los mega-centros de servicio en la carretera (sector Casablanca) presentan tarifas considerablemente más altas por su exclusividad.",
+      "El truco es llenar tu vehículo en comunas aledañas antes de tomar la ruta. Por ejemplo, estaciones en Maipú o Pudahuel suelen registrar valores hasta $40 pesos más baratos por litro en comparación con la primera gran estación de servicio saliendo de Santiago."
+    ]
+  },
+  { 
+    id: 6, 
+    title: "Guía definitiva: ¿Qué octanaje realmente necesitas?", 
+    category: "Mecánica", 
+    date: "02 Abr 2026", 
+    excerpt: "Mito vs Realidad. Descubre si de verdad vale la pena pagar de más por la bencina de 97 octanos.", 
+    image: "https://picsum.photos/id/1071/800/400",
+    content: [
+      "Uno de los mitos más extendidos entre los conductores es creer que poner gasolina de 97 octanos hará que un auto diseñado para 93 corra más rápido, tenga más potencia o limpie el motor. Esto es completamente falso.",
+      "El octanaje no es una medida de 'energía' o 'calidad', sino de la capacidad del combustible para soportar la compresión dentro de los cilindros del motor sin detonar antes de tiempo. Vehículos deportivos o con turbo de alta compresión necesitan 97 octanos para funcionar correctamente. Sin embargo, un vehículo familiar estándar (City car, Sedán) suele requerir solo 93 o 95.",
+      "El mejor consejo es revisar el manual del fabricante de tu automóvil o la etiqueta interior de la tapa del estanque. Si el fabricante exige un mínimo de 93 octanos, pagar por 97 es literalmente botar tu dinero, ya que el motor no tiene la capacidad técnica de aprovechar ese extra."
+    ]
+  }
 ];
 
 function extractRegionId(displayName) {
@@ -230,7 +317,6 @@ function generateStationsMapHtml(stations, selectedStation, userLoc, showRouteLi
           const logoStr = s.logo ? `<img src="${s.logo}" style="width:100%;height:100%;object-fit:contain;padding:4px;border-radius:50%;background:white;box-sizing:border-box;"/>` : `<span style="font-size:12px;font-weight:900;color:#334155;">${s.distribuidor.substring(0,1)}</span>`;
           htmlStr = `<div style="display:flex;flex-direction:column;align-items:center;transform:translate(-50%, -100%);"><div style="background:${color};width:36px;height:36px;border:3px solid white;border-radius:50%;display:flex;align-items:center;justify-content:center;overflow:hidden;box-shadow:0 4px 10px rgba(0,0,0,0.3);animation: pulse 1.5s infinite;">${logoStr}</div><div style="background:#2563eb;color:white;font-size:12px;font-weight:900;padding:2px 8px;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,0.2);margin-top:4px;white-space:nowrap;width:max-content;">$${price}</div></div>`;
       } else {
-          // Si NO está seleccionado, se centra en su propio punto sin romper el width
           htmlStr = `<div style="background:white;border:1.5px solid ${color};color:${color};font-size:11px;font-weight:900;padding:2px 6px;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,0.15);text-align:center;white-space:nowrap;transform:translate(-50%, -50%);width:max-content;">$${price}</div>`;
       }
 
@@ -371,6 +457,10 @@ const ComunaAutocomplete = ({ placeholder, value, onSelect, comunas }) => {
 // APP PRINCIPAL
 // =====================================================================
 export default function App() {
+  const [currentView, setCurrentView] = useState('home'); // 'home', 'app', 'blog', 'post', 'about', 'privacy', 'terms'
+  const [selectedPost, setSelectedPost] = useState(null);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+
   const [calcMode, setCalcMode] = useState("carga");
   const [fuelType, setFuelType] = useState(() => localStorage.getItem('andesruta_fuel') || "93");
   const [efficiencyKml, setEfficiencyKml] = useState(() => localStorage.getItem('andesruta_eff') || "12");
@@ -425,14 +515,14 @@ export default function App() {
   // y también bloquear el body overflow en caso de emergencias por barras de navegación safari.
   useEffect(() => {
     if (window.innerWidth < 1024) {
-      if (mobileStep === 2) {
+      if (mobileStep === 2 && currentView === 'app') {
         document.body.style.overflow = 'hidden';
       } else {
         document.body.style.overflow = '';
       }
     }
     return () => { document.body.style.overflow = ''; };
-  }, [mobileStep]);
+  }, [mobileStep, currentView]);
 
   const availableComunas = React.useMemo(() => {
     const map = new globalThis.Map();
@@ -473,8 +563,11 @@ export default function App() {
   useEffect(() => {
     if (cneStations.length > 0 && !urlParsed) {
       const params = new URLSearchParams(window.location.search);
+      let setAppView = false;
+      
       if (params.get('origen') || params.get('destino')) {
         setCalcMode('viaje');
+        setAppView = true;
         const oParam = params.get('origen');
         const dParam = params.get('destino');
 
@@ -493,6 +586,7 @@ export default function App() {
         }
       } else if (params.get('comuna')) {
         setCalcMode('carga');
+        setAppView = true;
         const queryComuna = normalizeString(params.get('comuna'));
         let foundComuna = availableComunas.find(c => normalizeString(c.comuna) === queryComuna);
         if (!foundComuna) {
@@ -502,6 +596,10 @@ export default function App() {
       } else {
         setCalcMode('carga');
         setCargaComuna(''); 
+      }
+      
+      if (setAppView) {
+        setCurrentView('app');
       }
       setUrlParsed(true);
     }
@@ -527,7 +625,7 @@ export default function App() {
     if (tIdx >= 0 && tIdx < newWps.length) { const temp = newWps[index]; newWps[index] = newWps[tIdx]; newWps[tIdx] = temp; setWaypoints(newWps); }
   };
 
-  const handleSeoLinkClick = (e, comuna) => { e.preventDefault(); setCalcMode('carga'); setCargaComuna(comuna.toUpperCase()); setMobileStep(1); };
+  const handleSeoLinkClick = (e, comuna) => { e.preventDefault(); setCalcMode('carga'); setCargaComuna(comuna.toUpperCase()); setMobileStep(1); setCurrentView('app'); window.scrollTo(0,0); };
 
   useEffect(() => { setCurrentStation(null); setShowStationModal(false); if (cargaListRef.current) cargaListRef.current.scrollTop = 0; }, [cargaComuna, fuelType, sortBy]);
 
@@ -691,7 +789,12 @@ export default function App() {
       setIsLoading(true);
       try {
         console.log("🚀 Iniciando conexión con CNE (Login)... RUTA:", RUTA_LOGIN);
-        const loginRes = await fetch(RUTA_LOGIN, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: "email=nicolas0645@gmail.com&password=12qwaszxL" });
+        
+        // Uso de URL absoluta genérica para evitar errores de parseo en entornos sin origen definido
+        const loginUrl = new URL(RUTA_LOGIN, window.location.origin === "null" ? "https://api.cne.cl" : window.location.origin).href;
+        const estUrl = new URL(RUTA_ESTACIONES, window.location.origin === "null" ? "https://api.cne.cl" : window.location.origin).href;
+        
+        const loginRes = await fetch(loginUrl, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: "email=nicolas0645@gmail.com&password=12qwaszxL" });
         console.log("✅ Status Login CNE:", loginRes.status);
         
         if (!loginRes.ok) throw new Error(`Error en Login.`);
@@ -700,7 +803,7 @@ export default function App() {
         if (token) {
           console.log("🔑 Token obtenido correctamente. Consultando Estaciones...");
           setAuthStatus("success");
-          const stRes = await fetch(RUTA_ESTACIONES, { headers: { Token: token, Authorization: `Bearer ${token}`, Accept: "application/json" } });
+          const stRes = await fetch(estUrl, { headers: { Token: token, Authorization: `Bearer ${token}`, Accept: "application/json" } });
           console.log("✅ Status Estaciones CNE:", stRes.status);
           const stData = await stRes.json();
           const raw = Array.isArray(stData) ? stData : stData.data || stData.estaciones || [];
@@ -779,7 +882,6 @@ export default function App() {
 
   let pricePerLiter = 0;
   if (calcMode === "viaje" && originCity && destCity) {
-    // Buscar estaciones válidas solo en el origen
     const regionStations = cneStations.filter((s) => s.regionId === originCity.regionId && getBestPrice(s.precios[fuelType]) > 0);
     if (regionStations.length > 0) pricePerLiter = Math.round(regionStations.reduce((acc, s) => acc + getBestPrice(s.precios[fuelType]), 0) / regionStations.length);
   }
@@ -870,7 +972,7 @@ export default function App() {
       <div className="mt-4 w-full space-y-3 shrink-0">
         <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">Ubicación</h3>
         <div className="bg-white rounded-[2rem] p-2 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100">
-          <ComunaAutocomplete placeholder="¿En qué comuna buscas?" value={cargaComuna} onSelect={handleSelectComuna} comunas={availableComunas} />
+          <RouteCityAutocomplete placeholder="¿En qué comuna buscas?" value={{ mainName: cargaComuna }} onSelect={(val) => handleSelectComuna(val ? val.mainName : "")} comunasData={comunasDataForRouting} />
         </div>
         
         <div className="flex flex-wrap items-center gap-2 pl-2 pt-1">
@@ -1013,7 +1115,7 @@ export default function App() {
              <div className="flex items-center justify-between gap-3 bg-white p-2.5 rounded-xl border border-slate-200 shadow-sm w-full md:w-fit md:min-w-[280px]">
                  <div className="flex items-center gap-2">
                      <div className="bg-blue-100 p-1.5 rounded-lg"><Droplets className="w-4 h-4 text-blue-600" /></div>
-                     <span className="text-[12px] font-bold text-slate-600">Combustible ({fuelType === "diesel" ? "Diesel" : fuelType === "parafina" ? "Paraf" : `${fuelType} Oct`})</span>
+                     <span className="text-[12px] font-bold text-slate-600">Combustible ({fuelType === "diesel" ? "Diésel" : fuelType === "parafina" ? "Paraf" : `${fuelType} Oct`})</span>
                  </div>
                  <div className="flex items-center gap-1.5">
                      <span className="text-[13px] font-black text-slate-900">{formatCLP(bencinaTotal)}</span>
@@ -1041,7 +1143,7 @@ export default function App() {
   const renderCargaRightPanel = () => {
     if (!cargaComuna || filteredStationsCarga.length === 0) {
       return (
-        <div className="w-full h-full flex flex-col items-center justify-center text-slate-400 opacity-60 bg-slate-100 p-6 text-center lg:rounded-[2.5rem] lg:shadow-xl lg:border-[8px] lg:border-white">
+        <div className="flex-1 w-full h-full flex flex-col items-center justify-center text-slate-400 opacity-60 bg-slate-100 p-6 text-center lg:rounded-[2.5rem] lg:shadow-xl lg:border-[8px] lg:border-white">
            <MapPin className="w-16 h-16 mb-4" />
            <p className="text-lg font-bold max-w-xs">Selecciona una comuna para ver las estaciones cercanas en el mapa</p>
         </div>
@@ -1049,14 +1151,14 @@ export default function App() {
     }
 
     return (
-      <div className="w-full h-full flex flex-col relative bg-slate-200 lg:rounded-[2rem] lg:shadow-xl lg:border-[6px] lg:border-white lg:overflow-hidden">
+      <div className="flex-1 w-full h-full flex flex-col relative lg:rounded-[2.5rem] lg:shadow-xl lg:border-[8px] lg:border-white overflow-hidden bg-slate-200 lg:h-[calc(100vh-140px)] lg:sticky lg:top-[100px]">
         
         {/* Botón volver Mobile (Aparece en modo mapa) */}
         <div className="lg:hidden absolute top-4 left-4 z-40">
             <button onClick={() => {
                 setMobileStep(1);
                 setCurrentStation(null);
-            }} className="bg-white/95 backdrop-blur-md p-2.5 rounded-full shadow-lg text-slate-800 flex items-center justify-center cursor-pointer">
+            }} className="bg-white/90 backdrop-blur-md p-2.5 rounded-full shadow-lg border border-slate-100 text-slate-800 flex items-center justify-center cursor-pointer">
               <ChevronLeft className="w-6 h-6"/>
             </button>
         </div>
@@ -1068,9 +1170,9 @@ export default function App() {
         
         {/* PANEL DETALLE ESTACION (ADAPTABLE AL CONTENIDO) */}
         {currentStation && !showCalcModal && (
-           <div className="w-full bg-white/95 backdrop-blur-xl p-5 sm:p-6 shadow-[0_-15px_40px_rgba(0,0,0,0.12)] border-t border-slate-200 z-30 flex flex-col shrink-0 transition-all duration-300">
+           <div className="w-full bg-white/95 backdrop-blur-xl p-6 shadow-[0_-20px_40px_rgba(0,0,0,0.12)] pb-8 lg:pb-6 border-t border-slate-200 shrink-0 z-30 transition-all duration-300">
 
-              <div className="flex flex-col flex-1 overflow-hidden lg:max-w-3xl lg:mx-auto w-full">
+              <div className="flex flex-col overflow-hidden max-w-3xl mx-auto w-full">
                  <div className="flex justify-between items-start mb-4 shrink-0">
                     <div className="flex items-center gap-3">
                        {currentStation.logo ? <img src={currentStation.logo} className="w-10 h-10 object-contain rounded-full border border-slate-100 p-1 bg-white" /> : <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center"><Fuel className="w-6 h-6 text-slate-400" /></div>}
@@ -1086,7 +1188,7 @@ export default function App() {
                     }} className="bg-slate-100 p-2.5 rounded-full hover:bg-slate-200 transition-colors shrink-0 ml-2"><X className="w-4 h-4 text-slate-600"/></button>
                  </div>
                  
-                 <div className="flex-1 overflow-y-auto no-scrollbar pb-2 px-1">
+                 <div className="overflow-y-auto no-scrollbar pb-2 px-1">
                     
                     {/* Alerta de precios diferenciados */}
                     {["93", "95", "97", "diesel", "parafina"].some(t => {
@@ -1137,7 +1239,7 @@ export default function App() {
                     </div>
                  </div>
 
-                 <div className="flex gap-2 pt-3 border-t border-slate-100 mt-1 shrink-0 lg:pb-0">
+                 <div className="flex gap-2 pt-3 border-t border-slate-100 mt-1 shrink-0">
                     <button onClick={() => { setCalcFuelType(fuelType); setShowCalcModal(true); }} className="flex-1 bg-slate-900 text-white rounded-xl py-3.5 text-[13px] font-extrabold flex items-center justify-center gap-1.5 shadow-xl shadow-slate-900/20 active:scale-95 transition-transform"><Calculator className="w-4 h-4" /> Calcular</button>
                     <a href={`https://www.google.com/maps/dir/?api=1&destination=${currentStation.lat},${currentStation.lon}`} target="_blank" rel="noopener noreferrer" className="flex-1 bg-blue-600 text-white rounded-xl py-3.5 text-[13px] font-extrabold flex items-center justify-center gap-1.5 shadow-xl shadow-blue-600/20 active:scale-95 transition-transform"><MapPin className="w-3.5 h-3.5" /> Llegar</a>
                  </div>
@@ -1146,14 +1248,14 @@ export default function App() {
         )}
 
         {currentStation && showCalcModal && (
-           <div className="w-full bg-white/95 backdrop-blur-xl p-5 sm:p-6 shadow-[0_-15px_40px_rgba(0,0,0,0.12)] border-t border-slate-200 z-30 flex flex-col shrink-0 transition-all duration-300">
+           <div className="w-full bg-white/95 backdrop-blur-xl p-6 shadow-[0_-20px_40px_rgba(0,0,0,0.12)] pb-8 lg:pb-6 border-t border-slate-200 shrink-0 z-30 transition-all duration-300">
               
-              <div className="flex flex-col flex-1 overflow-hidden lg:max-w-2xl lg:mx-auto w-full">
+              <div className="flex flex-col overflow-hidden max-w-2xl mx-auto w-full">
                  <div className="flex justify-between items-center mb-3 shrink-0 px-1">
                     <h3 className="font-black text-slate-900 flex items-center text-lg"><Calculator className="w-5 h-5 mr-2 text-slate-900"/> Calculadora</h3>
                     <button onClick={() => {setShowCalcModal(false); setCalcVal("");}} className="bg-slate-100 p-2.5 rounded-full hover:bg-slate-200 transition-colors cursor-pointer"><ChevronLeft className="w-4 h-4 text-slate-600"/></button>
                  </div>
-                 <div className="flex-1 overflow-y-auto no-scrollbar pb-2 px-1 space-y-4">
+                 <div className="overflow-y-auto no-scrollbar pb-2 px-1 space-y-4">
                     <div className="flex bg-slate-200/60 p-1.5 rounded-[1rem]">
                        <button onClick={() => { setCalcUnit("money"); setCalcVal(""); }} className={`flex-1 text-[12px] font-bold px-3 py-2 rounded-xl transition-all cursor-pointer ${calcUnit === 'money' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500'}`}>💵 Pesos ($)</button>
                        <button onClick={() => { setCalcUnit("liters"); setCalcVal(""); }} className={`flex-1 text-[12px] font-bold px-3 py-2 rounded-xl transition-all cursor-pointer ${calcUnit === 'liters' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500'}`}>⛽ Litros (L)</button>
@@ -1184,7 +1286,7 @@ export default function App() {
   const renderViajeRightPanel = () => {
     if (!originCity || !destCity) {
       return (
-        <div className="w-full h-full flex flex-col items-center justify-center text-slate-400 opacity-60 bg-slate-100 p-6 text-center lg:rounded-[2.5rem] lg:shadow-xl lg:border-[8px] lg:border-white">
+        <div className="flex-1 w-full h-full flex flex-col items-center justify-center text-slate-400 opacity-60 bg-slate-100 p-6 text-center lg:rounded-[2.5rem] lg:shadow-xl lg:border-[8px] lg:border-white">
            <Route className="w-16 h-16 mb-4" />
            <p className="text-lg font-bold max-w-xs">Ingresa tu punto de origen y destino para trazar la ruta en el mapa</p>
         </div>
@@ -1232,11 +1334,164 @@ export default function App() {
     );
   };
 
+  const renderHome = () => (
+    <div className="w-full flex flex-col items-center animate-in fade-in duration-500">
+       {/* Hero Section */}
+       <div className="w-full bg-slate-900 text-white py-20 px-4 text-center relative overflow-hidden">
+          <div className="absolute inset-0 opacity-10 bg-[url('https://picsum.photos/id/1044/2000/1000')] bg-cover bg-center"></div>
+          <div className="max-w-3xl mx-auto relative z-10 flex flex-col items-center">
+             <div className="bg-blue-600/20 text-blue-300 px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-widest mb-6 border border-blue-500/30">100% Gratis y Actualizado</div>
+             <h1 className="text-4xl md:text-6xl font-black tracking-tight mb-6 leading-tight">Encuentra la bencina más barata y planifica tu ruta en Chile</h1>
+             <p className="text-lg md:text-xl text-slate-300 mb-10 max-w-2xl leading-relaxed">Ahorra en cada estanque. Comparamos los precios oficiales de la CNE y calculamos el costo exacto de tus viajes incluyendo peajes.</p>
+             <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
+                <button onClick={() => { setCurrentView('app'); setCalcMode('carga'); setMobileStep(1); window.scrollTo(0,0); }} className="bg-blue-600 hover:bg-blue-500 text-white px-8 py-4 rounded-[1.25rem] font-black text-[15px] transition-all flex items-center justify-center gap-2 shadow-xl shadow-blue-900/20"><Fuel className="w-5 h-5"/> Buscar Combustible</button>
+                <button onClick={() => { setCurrentView('app'); setCalcMode('viaje'); setMobileStep(1); window.scrollTo(0,0); }} className="bg-white text-slate-900 hover:bg-slate-50 px-8 py-4 rounded-[1.25rem] font-black text-[15px] transition-all flex items-center justify-center gap-2 shadow-xl"><MapPin className="w-5 h-5 text-blue-600"/> Planificar Viaje</button>
+             </div>
+          </div>
+       </div>
+
+       {/* Features */}
+       <div className="w-full max-w-7xl mx-auto py-20 px-4 lg:px-8 grid md:grid-cols-3 gap-8">
+          <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-200">
+             <div className="w-14 h-14 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mb-6"><DollarSign className="w-7 h-7"/></div>
+             <h3 className="text-xl font-black text-slate-900 mb-3">Precios Oficiales (CNE)</h3>
+             <p className="text-slate-500 leading-relaxed text-sm">Consultamos la base de datos oficial del Gobierno de Chile en tiempo real para mostrarte valores exactos de Gasolina, Diésel y Parafina.</p>
+          </div>
+          <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-200">
+             <div className="w-14 h-14 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center mb-6"><Route className="w-7 h-7"/></div>
+             <h3 className="text-xl font-black text-slate-900 mb-3">Cálculo de Peajes</h3>
+             <p className="text-slate-500 leading-relaxed text-sm">Nuestra calculadora traza la ruta por GPS y detecta automáticamente los peajes y pórticos TAG para darte un presupuesto real.</p>
+          </div>
+          <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-200">
+             <div className="w-14 h-14 bg-purple-50 text-purple-600 rounded-2xl flex items-center justify-center mb-6"><TrendingUp className="w-7 h-7"/></div>
+             <h3 className="text-xl font-black text-slate-900 mb-3">Ahorro Inteligente</h3>
+             <p className="text-slate-500 leading-relaxed text-sm">Te mostramos qué estaciones ofrecen descuentos por Autoservicio y ordenamos todo de menor a mayor precio para cuidar tu bolsillo.</p>
+          </div>
+       </div>
+
+       {/* AdSense Placeholder here */}
+       <div className="w-full max-w-4xl mx-auto px-4 lg:px-8 pb-20">
+          <AdPlaceholder />
+       </div>
+    </div>
+  );
+
+  const renderPost = () => {
+    if (!selectedPost) return null;
+    return (
+      <div className="w-full max-w-4xl mx-auto py-12 px-4 lg:px-8 animate-in fade-in duration-500">
+        <button onClick={() => { setSelectedPost(null); setCurrentView('blog'); window.scrollTo(0,0); }} className="flex items-center gap-2 text-blue-600 font-bold mb-6 hover:underline cursor-pointer">
+          <ChevronLeft className="w-4 h-4" /> Volver a Noticias
+        </button>
+        <article className="bg-white rounded-[2.5rem] shadow-sm border border-slate-200 overflow-hidden">
+          <div className="h-64 md:h-96 w-full bg-slate-100 relative">
+             <img src={selectedPost.image} className="w-full h-full object-cover" alt={selectedPost.title} />
+             <div className="absolute top-6 left-6 bg-white/90 backdrop-blur-md px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-wider text-blue-600 z-10">{selectedPost.category}</div>
+          </div>
+          <div className="p-8 md:p-12">
+             <div className="flex items-center gap-2 text-slate-400 text-sm font-semibold mb-4">
+               <Calendar className="w-4 h-4" /> {selectedPost.date}
+             </div>
+             <h1 className="text-3xl md:text-4xl font-black text-slate-900 mb-6 leading-tight">{selectedPost.title}</h1>
+             <div className="prose prose-slate prose-blue max-w-none text-slate-600 leading-relaxed space-y-4">
+               {selectedPost.content.map((paragraph, i) => (
+                 <p key={i}>{paragraph}</p>
+               ))}
+             </div>
+          </div>
+        </article>
+      </div>
+    );
+  };
+
+  const renderBlog = () => (
+    <div className="w-full max-w-6xl mx-auto py-12 px-4 lg:px-8 animate-in fade-in duration-500">
+      <div className="mb-12 text-center">
+        <h2 className="text-3xl md:text-4xl font-black text-slate-900 mb-4 tracking-tight">Noticias y Rutas</h2>
+        <p className="text-slate-500 max-w-2xl mx-auto text-base">Descubre los mejores destinos en Chile, consejos para ahorrar combustible y las últimas actualizaciones del mundo automotriz.</p>
+      </div>
+      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {BLOG_POSTS.map(post => (
+          <div key={post.id} onClick={() => { setSelectedPost(post); setCurrentView('post'); window.scrollTo(0,0); }} className="bg-white rounded-[2rem] shadow-sm border border-slate-200 overflow-hidden hover:shadow-lg hover:-translate-y-1 transition-all duration-300 cursor-pointer flex flex-col">
+             <div className="h-48 w-full bg-slate-100 flex items-center justify-center relative overflow-hidden">
+                <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-md px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider text-blue-600 z-10">{post.category}</div>
+                <img src={post.image} alt={post.title} className="w-full h-full object-cover" />
+             </div>
+             <div className="p-6 flex flex-col flex-1">
+                <div className="flex items-center gap-2 text-slate-400 text-xs font-semibold mb-3">
+                   <Calendar className="w-3.5 h-3.5" /> {post.date}
+                </div>
+                <h3 className="font-black text-lg text-slate-900 leading-tight mb-2 line-clamp-2">{post.title}</h3>
+                <p className="text-slate-500 text-sm leading-relaxed mb-6 flex-1 line-clamp-3">{post.excerpt}</p>
+                <div className="flex items-center text-blue-600 font-bold text-sm group">
+                   Leer artículo <ChevronRight className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" />
+                </div>
+             </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  const renderPageContent = () => {
+    return (
+      <div className="w-full max-w-4xl mx-auto py-12 px-4 lg:px-8 animate-in fade-in duration-500">
+         <article className="bg-white p-8 md:p-12 rounded-[2.5rem] shadow-sm border border-slate-200 text-slate-600">
+            {currentView === 'about' && (
+               <>
+                 <h2 className="text-2xl md:text-3xl font-black text-slate-900 mb-6">La guía definitiva para encontrar la bencina más barata en Chile</h2>
+                 <p className="mb-6 text-sm md:text-base leading-relaxed">
+                   En <strong>Andes Ruta</strong> sabemos que el costo de la vida y los constantes cambios en el <strong>precio de los combustibles</strong> (93, 95, 97 octanos, diésel y parafina) impactan directamente en tu bolsillo. Por eso, hemos desarrollado esta herramienta inteligente que consulta en tiempo real la base de datos de la Comisión Nacional de Energía (CNE) para mostrarte las gasolineras más económicas cerca de tu ubicación.
+                 </p>
+                 <div className="grid md:grid-cols-2 gap-8 mt-10">
+                   <div>
+                     <h3 className="text-lg font-black text-slate-800 mb-3 flex items-center gap-2"><Droplets className="w-5 h-5 text-blue-500" /> ¿Cómo ahorrar en cada carga?</h3>
+                     <ul className="space-y-3 text-sm md:text-base">
+                       <li><strong className="text-slate-800">Prefiere el Autoservicio:</strong> Como puedes ver en nuestro mapa, muchas estaciones ofrecen descuentos directos en el surtidor si decides cargar el combustible tú mismo.</li>
+                       <li><strong className="text-slate-800">Aprovecha los descuentos por día:</strong> Revisa siempre las aplicaciones de fidelización. Pagar con ciertas tarjetas bancarias o billeteras digitales en días específicos puede ahorrarte hasta $300 por litro.</li>
+                       <li><strong className="text-slate-800">Mantén tus neumáticos inflados:</strong> Una presión baja aumenta la resistencia al rodaje, haciendo que tu vehículo consuma hasta un 3% más de gasolina.</li>
+                     </ul>
+                   </div>
+                   <div>
+                     <h3 className="text-lg font-black text-slate-800 mb-3 flex items-center gap-2"><MapIcon className="w-5 h-5 text-blue-500" /> Planifica tus viajes y peajes</h3>
+                     <p className="text-sm md:text-base mb-6 leading-relaxed">
+                       Nuestra calculadora de rutas no solo mide la distancia exacta entre dos ciudades en Chile usando tecnología de código abierto, sino que también estima el costo en peajes y el gasto de combustible según el rendimiento real de tu vehículo en carretera.
+                     </p>
+                     <h3 className="text-lg font-black text-slate-800 mb-3 flex items-center gap-2"><Clock className="w-5 h-5 text-blue-500" /> ¿Cuándo cambia el precio?</h3>
+                     <p className="text-sm md:text-base leading-relaxed">
+                       En Chile, gracias al Mecanismo de Estabilización de Precios de los Combustibles (MEPCO), los valores en surtidor se actualizan habitualmente los días <strong>jueves</strong>, y los precios se mantienen estables por ciclos de tres semanas.
+                     </p>
+                   </div>
+                 </div>
+               </>
+            )}
+            {currentView === 'privacy' && (
+               <>
+                 <h2 className="text-2xl md:text-3xl font-black text-slate-900 mb-6 flex items-center gap-3"><ShieldCheck className="w-8 h-8 text-emerald-500"/> Política de Privacidad</h2>
+                 <p className="mb-4 text-sm md:text-base"><strong>1. Uso de la Ubicación:</strong> Para proporcionar resultados de "Estaciones cerca de mí", Andes Ruta solicita acceso temporal a la ubicación GPS de su dispositivo. Esta información se procesa exclusivamente en su navegador local y <strong>nunca es guardada, almacenada ni transmitida</strong> a nuestros servidores.</p>
+                 <p className="mb-4 text-sm md:text-base"><strong>2. Datos de Almacenamiento:</strong> La aplicación utiliza almacenamiento local (Local Storage) en su navegador para guardar preferencias como el rendimiento de su vehículo y las últimas comunas buscadas, mejorando su experiencia de uso. Estos datos no son rastreables remotamente.</p>
+                 <p className="mb-4 text-sm md:text-base"><strong>3. Anuncios:</strong> Utilizamos Google AdSense para mostrar publicidad relevante. Google y sus socios pueden utilizar cookies para mostrar anuncios basados en sus visitas anteriores a este y otros sitios web.</p>
+               </>
+            )}
+            {currentView === 'terms' && (
+               <>
+                 <h2 className="text-2xl md:text-3xl font-black text-slate-900 mb-6 flex items-center gap-3"><FileText className="w-8 h-8 text-purple-500"/> Términos de Uso</h2>
+                 <p className="mb-4 text-sm md:text-base">Al utilizar Andes Ruta, usted acepta los siguientes términos:</p>
+                 <p className="mb-4 text-sm md:text-base"><strong>1. Precisión de Precios:</strong> Los precios son suministrados a través de la API de la CNE. Andes Ruta no se hace responsable por diferencias temporales o errores de digitación cometidos por las bencineras al reportar sus tarifas.</p>
+                 <p className="mb-4 text-sm md:text-base"><strong>2. Cálculo de Peajes (Fase Beta):</strong> Las estimaciones de peajes y rutas son puramente referenciales. Factores como horarios punta, tarifas de fin de semana, o desvíos en el trayecto pueden alterar el costo final. Andes Ruta se provee "tal cual", sin garantías comerciales.</p>
+                 <p className="mb-4 text-sm md:text-base"><strong>3. Promociones:</strong> Los descuentos exhibidos son recopilaciones informativas de carácter público. Las condiciones finales, topes y vigencias dependen exclusivamente de los bancos y entidades emisoras.</p>
+               </>
+            )}
+         </article>
+      </div>
+    );
+  }
+
   const renderFooter = () => (
-    <footer className={`bg-white border-t border-slate-200 py-12 px-8 mt-auto w-full ${mobileStep === 2 ? 'hidden lg:block' : 'block'}`}>
+    <footer className={`bg-white border-t border-slate-200 py-12 px-8 mt-auto w-full ${(mobileStep === 2 && currentView === 'app') ? 'hidden lg:block' : 'block'}`}>
        <div className="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center gap-6">
           <div className="flex flex-col items-center md:items-start">
-             <div className="flex items-center gap-2 mb-2 grayscale opacity-50">
+             <div className="flex items-center gap-2 mb-2 grayscale opacity-50 cursor-pointer" onClick={() => {setCurrentView('home'); window.scrollTo(0,0);}}>
                 <Fuel className="w-5 h-5 text-slate-600" />
                 <span className="font-black text-lg tracking-tighter text-slate-600">Andes Ruta</span>
              </div>
@@ -1246,6 +1501,9 @@ export default function App() {
           </div>
           
           <div className="flex flex-wrap justify-center gap-6">
+             <button onClick={() => {setCurrentView('about'); window.scrollTo(0,0);}} className="text-xs font-black text-slate-500 hover:text-blue-600 uppercase tracking-wider transition-colors cursor-pointer">Acerca de</button>
+             <button onClick={() => {setCurrentView('privacy'); window.scrollTo(0,0);}} className="text-xs font-black text-slate-500 hover:text-blue-600 uppercase tracking-wider transition-colors cursor-pointer">Privacidad</button>
+             <button onClick={() => {setCurrentView('terms'); window.scrollTo(0,0);}} className="text-xs font-black text-slate-500 hover:text-blue-600 uppercase tracking-wider transition-colors cursor-pointer">Términos de uso</button>
              <a href="mailto:contacto@andesruta.com" className="text-xs font-black text-slate-500 hover:text-blue-600 uppercase tracking-wider transition-colors cursor-pointer">Contacto</a>
           </div>
        </div>
@@ -1265,68 +1523,113 @@ export default function App() {
     <div className="bg-slate-50 min-h-screen flex flex-col font-sans text-slate-800">
       
       {/* HEADER WEB */}
-      <header className={`h-[70px] shrink-0 bg-white border-b border-slate-200 sticky top-0 z-[100] px-4 lg:px-8 shadow-sm items-center justify-between w-full ${mobileStep === 2 ? 'hidden lg:flex' : 'flex'}`}>
-         <div className="max-w-7xl mx-auto flex items-center justify-between w-full">
-           <div className="flex items-center gap-2 lg:gap-3">
-              <div className="bg-blue-600 p-2 lg:p-2.5 rounded-xl shadow-md shadow-blue-200"><Fuel className="w-5 h-5 lg:w-6 lg:h-6 text-white" /></div>
-              <div>
-                <h1 className="text-lg lg:text-xl font-black tracking-tight text-slate-900 leading-none">Andes Ruta</h1>
-                <div className="flex items-center gap-1 mt-1">
-                   <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></span>
-                   <p className="text-[9px] lg:text-[10px] font-bold text-slate-400 uppercase tracking-widest">Precios Oficiales</p>
-                </div>
-              </div>
-           </div>
-
-           {/* MODO DESKTOP / MOBILE TABS (En Header) */}
-           <div className="hidden lg:flex bg-slate-100 p-1.5 rounded-2xl">
-              <button onClick={() => { setCalcMode('carga'); setMobileStep(1); }} className={`px-6 py-2.5 text-[13px] font-bold rounded-xl transition-all cursor-pointer ${calcMode === 'carga' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
-                 1. Buscar Combustible
-              </button>
-              <button onClick={() => { setCalcMode('viaje'); setMobileStep(1); if (fuelType === "parafina") setFuelType("93"); }} className={`px-6 py-2.5 text-[13px] font-bold rounded-xl transition-all cursor-pointer ${calcMode === 'viaje' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
-                 2. Planificar Viaje
-              </button>
-           </div>
+      <header className={`h-[70px] shrink-0 bg-white border-b border-slate-200 sticky top-0 z-[100] px-4 lg:px-8 shadow-sm items-center justify-between w-full ${(mobileStep === 2 && currentView === 'app') ? 'hidden lg:flex' : 'flex'}`}>
+         <div className="max-w-7xl mx-auto flex items-center justify-between w-full h-full relative">
            
-           <div className="flex lg:hidden bg-slate-100 p-1 rounded-xl">
-              <button onClick={() => { setCalcMode('carga'); setMobileStep(1); }} className={`px-3 py-2 text-[11px] font-bold rounded-lg transition-all cursor-pointer ${calcMode === 'carga' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500'}`}>
-                 Carga
-              </button>
-              <button onClick={() => { setCalcMode('viaje'); setMobileStep(1); if (fuelType === "parafina") setFuelType("93"); }} className={`px-3 py-2 text-[11px] font-bold rounded-lg transition-all cursor-pointer ${calcMode === 'viaje' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500'}`}>
-                 Viaje
-              </button>
+           <div className="flex items-center gap-6 xl:gap-8">
+             {/* Logo */}
+             <div className="flex items-center gap-2 lg:gap-3 cursor-pointer" onClick={() => { setCurrentView('home'); setMobileStep(1); window.scrollTo(0,0); }}>
+                <div className="bg-blue-600 p-2 lg:p-2.5 rounded-xl shadow-md shadow-blue-200"><Fuel className="w-5 h-5 lg:w-6 lg:h-6 text-white" /></div>
+                <div>
+                  <h1 className="text-lg lg:text-xl font-black tracking-tight text-slate-900 leading-none">Andes Ruta</h1>
+                  <div className="flex items-center gap-1 mt-1">
+                     <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></span>
+                     <p className="text-[9px] lg:text-[10px] font-bold text-slate-400 uppercase tracking-widest">Precios Oficiales</p>
+                  </div>
+                </div>
+             </div>
+
+             {/* Navegación Desktop Principal */}
+             <nav className="hidden xl:flex items-center gap-6 border-l border-slate-200 pl-6 h-8">
+                <button onClick={() => { setCurrentView('home'); window.scrollTo(0,0); }} className={`text-sm font-bold transition-colors ${currentView === 'home' ? 'text-blue-600' : 'text-slate-500 hover:text-slate-900'}`}>Inicio</button>
+                <button onClick={() => { setCurrentView('app'); setCalcMode('carga'); setMobileStep(1); }} className={`text-sm font-bold transition-colors ${(currentView === 'app' && calcMode === 'carga') ? 'text-blue-600' : 'text-slate-500 hover:text-slate-900'}`}>Buscar Bencina</button>
+                <button onClick={() => { setCurrentView('app'); setCalcMode('viaje'); setMobileStep(1); }} className={`text-sm font-bold transition-colors ${(currentView === 'app' && calcMode === 'viaje') ? 'text-blue-600' : 'text-slate-500 hover:text-slate-900'}`}>Planificar Viaje</button>
+                <button onClick={() => { setCurrentView('blog'); setSelectedPost(null); }} className={`text-sm font-bold transition-colors ${(currentView === 'blog' || currentView === 'post') ? 'text-blue-600' : 'text-slate-500 hover:text-slate-900'}`}>Noticias & Rutas</button>
+             </nav>
            </div>
 
            <div className="flex items-center gap-2 lg:gap-3">
               {authStatus === 'error' && <AlertCircle className="w-5 h-5 text-red-500" title="Error en API" />}
               {authStatus === 'demo' && <Info className="w-5 h-5 text-amber-500" title="Modo Demo" />}
               <button onClick={() => setShowSettingsModal(true)} className="p-2 lg:p-2.5 bg-slate-100 rounded-full text-slate-600 hover:bg-slate-200 transition-colors cursor-pointer"><Settings className="w-5 h-5 lg:w-5 lg:h-5" /></button>
+              
+              {/* Botón Menú Móvil */}
+              <button onClick={() => setIsMenuOpen(true)} className="xl:hidden p-2 lg:p-2.5 bg-slate-100 rounded-full text-slate-600 hover:bg-slate-200 transition-colors cursor-pointer">
+                 <Menu className="w-5 h-5 lg:w-5 lg:h-5" />
+              </button>
            </div>
          </div>
       </header>
 
+      {/* MENÚ MÓVIL OVERLAY */}
+      {isMenuOpen && (
+         <div className="fixed inset-0 z-[3000] bg-slate-900/60 backdrop-blur-sm flex justify-end">
+            <div className="bg-white w-[85%] max-w-sm h-full p-6 animate-in slide-in-from-right duration-300 flex flex-col shadow-2xl">
+               <div className="flex justify-between items-center mb-8 border-b border-slate-100 pb-4">
+                  <span className="font-black text-xl text-slate-900 flex items-center gap-2"><MapIcon className="w-5 h-5 text-blue-600"/> Menú</span>
+                  <button onClick={() => setIsMenuOpen(false)} className="bg-slate-100 p-2 rounded-full hover:bg-slate-200"><X className="w-5 h-5"/></button>
+               </div>
+               <nav className="flex flex-col gap-2 flex-1">
+                  <button onClick={()=>{setCurrentView('home'); setIsMenuOpen(false); window.scrollTo(0,0);}} className={`p-4 text-left rounded-2xl font-bold text-[15px] flex items-center justify-between transition-colors ${currentView === 'home' ? 'bg-blue-50 text-blue-600' : 'bg-slate-50 text-slate-700'}`}>
+                     <span className="flex items-center gap-2"><Home className="w-5 h-5"/> Inicio</span> <ChevronRight className="w-4 h-4 opacity-50"/>
+                  </button>
+                  <button onClick={()=>{setCurrentView('app'); setCalcMode('carga'); setIsMenuOpen(false); setMobileStep(1);}} className={`p-4 text-left rounded-2xl font-bold text-[15px] flex items-center justify-between transition-colors ${(currentView === 'app' && calcMode === 'carga') ? 'bg-blue-50 text-blue-600' : 'bg-slate-50 text-slate-700'}`}>
+                     <span className="flex items-center gap-2"><Fuel className="w-5 h-5"/> Buscar Bencina</span> <ChevronRight className="w-4 h-4 opacity-50"/>
+                  </button>
+                  <button onClick={()=>{setCurrentView('app'); setCalcMode('viaje'); setIsMenuOpen(false); setMobileStep(1);}} className={`p-4 text-left rounded-2xl font-bold text-[15px] flex items-center justify-between transition-colors ${(currentView === 'app' && calcMode === 'viaje') ? 'bg-blue-50 text-blue-600' : 'bg-slate-50 text-slate-700'}`}>
+                     <span className="flex items-center gap-2"><MapPin className="w-5 h-5"/> Planificar Viaje</span> <ChevronRight className="w-4 h-4 opacity-50"/>
+                  </button>
+                  <button onClick={()=>{setCurrentView('blog'); setSelectedPost(null); setIsMenuOpen(false);}} className={`p-4 text-left rounded-2xl font-bold text-[15px] flex items-center justify-between transition-colors ${(currentView === 'blog' || currentView === 'post') ? 'bg-blue-50 text-blue-600' : 'bg-slate-50 text-slate-700'}`}>
+                     <span className="flex items-center gap-2"><FileText className="w-5 h-5"/> Noticias & Rutas</span> <ChevronRight className="w-4 h-4 opacity-50"/>
+                  </button>
+                  
+                  <div className="mt-8 mb-2">
+                     <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-4">Legal</span>
+                  </div>
+                  <button onClick={()=>{setCurrentView('about'); setLegalView('about'); setIsMenuOpen(false); window.scrollTo(0,0);}} className="px-4 py-3 text-left rounded-xl font-bold text-[14px] flex items-center gap-3 transition-colors text-slate-600 hover:bg-slate-50"><Info className="w-4 h-4 opacity-50"/> Acerca de</button>
+                  <button onClick={()=>{setCurrentView('privacy'); setLegalView('privacy'); setIsMenuOpen(false); window.scrollTo(0,0);}} className="px-4 py-3 text-left rounded-xl font-bold text-[14px] flex items-center gap-3 transition-colors text-slate-600 hover:bg-slate-50"><ShieldCheck className="w-4 h-4 opacity-50"/> Privacidad</button>
+                  <button onClick={()=>{setCurrentView('terms'); setLegalView('terms'); setIsMenuOpen(false); window.scrollTo(0,0);}} className="px-4 py-3 text-left rounded-xl font-bold text-[14px] flex items-center gap-3 transition-colors text-slate-600 hover:bg-slate-50"><FileText className="w-4 h-4 opacity-50"/> Términos de Uso</button>
+               </nav>
+               <div className="mt-auto pt-6 border-t border-slate-100">
+                  <a href="mailto:contacto@andesruta.com" className="w-full flex items-center justify-center gap-2 bg-slate-900 text-white p-4 rounded-[1.25rem] font-bold text-sm"><Mail className="w-4 h-4"/> Contactar Soporte</a>
+               </div>
+            </div>
+         </div>
+      )}
+
       {/* CONTENEDOR PRINCIPAL */}
-      <main className="flex-1 w-full max-w-7xl mx-auto flex flex-col lg:flex-row gap-0 lg:gap-8 lg:p-8">
+      <main className="flex-1 w-full flex flex-col">
         
-        {/* PANEL IZQUIERDO (SCROLL NATURAL WEB) */}
-        <div className={`flex flex-col w-full lg:w-[420px] xl:w-[450px] shrink-0 z-20 relative bg-transparent overflow-visible ${mobileStep === 2 ? 'hidden lg:flex' : 'flex'}`}>
-           {calcMode === 'carga' ? renderCargaLeftPanel() : renderViajeLeftPanel()}
-        </div>
-          
-        {/* PANEL DERECHO (MAPA Y RESULTADOS STICKY) */}
-        <div className={`flex-1 w-full ${mobileStep === 1 ? 'hidden lg:block' : 'block'}`}>
-           <div className={`w-full z-10 flex flex-col lg:sticky lg:top-[90px] lg:h-[calc(100vh-130px)] ${mobileStep === 2 ? 'fixed inset-0 z-[150] lg:relative lg:inset-auto lg:z-10' : 'relative h-[calc(100vh-70px)] z-10'}`}>
-              {calcMode === 'carga' ? renderCargaRightPanel() : renderViajeRightPanel()}
+        {currentView === 'home' && renderHome()}
+
+        {currentView === 'app' && (
+           <div className="w-full max-w-7xl mx-auto flex flex-col lg:flex-row gap-0 lg:gap-8 lg:p-8 flex-1">
+              {/* PANEL IZQUIERDO (SCROLL NATURAL WEB) */}
+              <div className={`flex flex-col w-full lg:w-[420px] xl:w-[450px] shrink-0 z-20 relative bg-transparent overflow-visible ${mobileStep === 2 ? 'hidden lg:flex' : 'flex'}`}>
+                 {calcMode === 'carga' ? renderCargaLeftPanel() : renderViajeLeftPanel()}
+              </div>
+                
+              {/* PANEL DERECHO (MAPA Y RESULTADOS STICKY) */}
+              <div className={`flex-1 w-full ${mobileStep === 1 ? 'hidden lg:block' : 'block'}`}>
+                 <div className={`w-full flex flex-col lg:sticky lg:top-[90px] lg:h-[calc(100vh-130px)] ${mobileStep === 2 ? 'fixed inset-0 z-[150] lg:relative lg:inset-auto lg:z-10' : 'relative h-[calc(100vh-70px)] z-10'}`}>
+                    {calcMode === 'carga' ? renderCargaRightPanel() : renderViajeRightPanel()}
+                 </div>
+              </div>
            </div>
-        </div>
+        )}
+
+        {currentView === 'blog' && renderBlog()}
+        {currentView === 'post' && renderPost()}
+        {['about', 'privacy', 'terms'].includes(currentView) && renderPageContent()}
+
       </main>
 
       {/* FOOTER WEB */}
       {renderFooter()}
 
-      {/* MODALES EN LA RAÍZ */}
+      {/* MODALES DE CONFIGURACIÓN Y PEAJES (Se mantienen intactos) */}
       {showTollsModal && (
-        <div className="fixed inset-0 z-[1000] bg-slate-900/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-4 sm:p-0">
+        <div className="fixed inset-0 z-[4000] bg-slate-900/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-4 sm:p-0">
           <div className="bg-white w-full max-w-sm rounded-[2.5rem] shadow-2xl p-6 animate-in slide-in-from-bottom-8 duration-300 mb-4 sm:mb-0">
              <div className="flex justify-between items-center mb-4">
                 <h3 className="font-black text-slate-900 flex items-center text-xl"><Ticket className="w-6 h-6 mr-2 text-slate-900"/> Peajes en ruta</h3>
@@ -1362,7 +1665,7 @@ export default function App() {
       )}
 
       {showSettingsModal && (
-        <div className="fixed inset-0 z-[1000] bg-slate-900/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-4 sm:p-0">
+        <div className="fixed inset-0 z-[4000] bg-slate-900/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-4 sm:p-0">
           <div className="bg-white w-full max-w-sm rounded-[2.5rem] shadow-2xl p-6 animate-in slide-in-from-bottom-8 duration-300 mb-4 sm:mb-0">
              <div className="flex justify-between items-center mb-6">
                 <h3 className="font-black text-slate-900 flex items-center text-xl"><Settings className="w-6 h-6 mr-2 text-slate-900"/> Configuración</h3>
@@ -1413,6 +1716,51 @@ export default function App() {
                 <button onClick={handleSaveSettings} className="w-full bg-slate-900 hover:bg-slate-800 text-white py-4 rounded-[1.25rem] font-bold text-[15px] active:scale-95 transition-all shadow-xl shadow-slate-900/20 cursor-pointer">Guardar Preferencias</button>
              </div>
           </div>
+        </div>
+      )}
+
+      {/* MODAL TEXTOS LEGALES (ADSENSE) */}
+      {legalView && (
+        <div className="fixed inset-0 z-[2000] bg-slate-900/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-4 sm:p-0">
+           <div className="bg-white w-full max-w-lg rounded-[2.5rem] shadow-2xl p-6 animate-in slide-in-from-bottom-8 duration-300 mb-4 sm:mb-0 max-h-[85vh] flex flex-col">
+             <div className="flex justify-between items-center mb-6 shrink-0">
+                <h3 className="font-black text-slate-900 flex items-center text-xl">
+                   {legalView === 'about' && <><Info className="w-6 h-6 mr-2 text-blue-600"/> Acerca de Andes Ruta</>}
+                   {legalView === 'privacy' && <><ShieldCheck className="w-6 h-6 mr-2 text-emerald-600"/> Política de Privacidad</>}
+                   {legalView === 'terms' && <><FileText className="w-6 h-6 mr-2 text-purple-600"/> Términos de Uso</>}
+                </h3>
+                <button onClick={() => setLegalView(null)} className="bg-slate-100 p-2 rounded-full hover:bg-slate-200 transition-colors cursor-pointer"><X className="w-5 h-5 text-slate-600"/></button>
+             </div>
+             
+             <div className="overflow-y-auto no-scrollbar pr-2 pb-4 text-sm text-slate-600 space-y-4">
+                {legalView === 'about' && (
+                  <>
+                    <p><b>Andes Ruta</b> es una plataforma independiente y gratuita diseñada para ayudar a los conductores en Chile a tomar decisiones informadas sobre el consumo de combustible.</p>
+                    <p>Nuestra tecnología se conecta directamente a los datos públicos proporcionados por la Comisión Nacional de Energía (CNE), garantizando que los precios mostrados son los oficiales reportados por las propias estaciones de servicio.</p>
+                    <p>Además, integramos algoritmos de enrutamiento avanzados (OpenStreetMap/OSRM) y una base de datos propia de peajes para ofrecer proyecciones de costos de viaje lo más precisas posibles.</p>
+                  </>
+                )}
+                {legalView === 'privacy' && (
+                  <>
+                    <p><b>1. Uso de la Ubicación:</b> Para proporcionar resultados de "Estaciones cerca de mí", Andes Ruta solicita acceso temporal a la ubicación GPS de su dispositivo. Esta información se procesa exclusivamente en su navegador local y <b>nunca es guardada, almacenada ni transmitida</b> a nuestros servidores.</p>
+                    <p><b>2. Datos de Almacenamiento:</b> La aplicación utiliza almacenamiento local (Local Storage) en su navegador para guardar preferencias como el rendimiento de su vehículo y las últimas comunas buscadas, mejorando su experiencia de uso. Estos datos no son rastreables remotamente.</p>
+                    <p><b>3. Anuncios:</b> Utilizamos Google AdSense para mostrar publicidad relevante. Google y sus socios pueden utilizar cookies para mostrar anuncios basados en sus visitas anteriores a este y otros sitios web.</p>
+                  </>
+                )}
+                {legalView === 'terms' && (
+                  <>
+                    <p>Al utilizar Andes Ruta, usted acepta los siguientes términos:</p>
+                    <p><b>1. Precisión de Precios:</b> Los precios son suministrados a través de la API de la CNE. Andes Ruta no se hace responsable por diferencias temporales o errores de digitación cometidos por las bencineras al reportar sus tarifas.</p>
+                    <p><b>2. Cálculo de Peajes (Fase Beta):</b> Las estimaciones de peajes y rutas son puramente referenciales. Factores como horarios punta, tarifas de fin de semana, o desvíos en el trayecto pueden alterar el costo final. Andes Ruta se provee "tal cual", sin garantías comerciales.</p>
+                    <p><b>3. Promociones:</b> Los descuentos exhibidos son recopilaciones informativas de carácter público. Las condiciones finales, topes y vigencias dependen exclusivamente de los bancos y entidades emisoras.</p>
+                  </>
+                )}
+             </div>
+
+             <div className="mt-4 pt-4 border-t border-slate-100 shrink-0">
+                <button onClick={() => setLegalView(null)} className="w-full bg-slate-900 text-white py-4 rounded-[1.25rem] font-bold text-[15px] active:scale-95 transition-transform shadow-xl shadow-slate-900/20 cursor-pointer">Entendido</button>
+             </div>
+           </div>
         </div>
       )}
 
